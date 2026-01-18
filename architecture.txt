@@ -1,0 +1,15 @@
+﻿# Arquitectura Proyecto Turno
+
+## Frontend
+- Next.js + JavaScript + Tailwind
+
+## Backend
+- Tecnología por definir
+
+## DevOps
+- Docker + GitHub Actions
+
+## Pendiente
+- Elegir backend (Node/Python/Java)
+- Diseñar API
+- Configurar DB
