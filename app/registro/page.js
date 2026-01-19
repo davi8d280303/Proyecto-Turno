@@ -1,20 +1,29 @@
 "use client";
-import Link from "next/link";
 
-export default function Home() {
+export default function RegistroPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
         <h1 className="text-gray-500 text-2xl font-semibold text-center">
-          Iniciar sesión
+          Registro
         </h1>
         <p className="text-center text-gray-500 mt-2">
-          Usa tu correo y contraseña
+          Crea una nueva cuenta
         </p>
 
         <hr className="my-6" />
 
         <form className="space-y-5">
+          <div>
+            <label className="text-gray-500 block text-sm font-medium">
+              Nombre
+            </label>
+            <input
+              type="text"
+              className="text-gray-500 mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </div>
+
           <div>
             <label className="text-gray-500 block text-sm font-medium">
               Correo
@@ -36,27 +45,23 @@ export default function Home() {
             />
           </div>
 
+          <div>
+            <label className="text-gray-500 block text-sm font-medium">
+              Confirmar contraseña
+            </label>
+            <input
+              type="password"
+              className="text-gray-500 mt-1 w-full rounded-md border px-3 py-2"
+            />
+          </div>
+
           <button
             type="submit"
-            className="text-gray-500 w-full rounded-md border py-2"
+            className="w-full rounded-md border py-2 text-gray-600"
           >
-            Iniciar sesión
+            Registrarse
           </button>
         </form>
-
-        {/* BOTÓN REGISTRARSE */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-500">
-            ¿No tienes cuenta?
-          </p>
-  <Link
-  href="/registro"
-  className="mt-2 block w-full rounded-md border border-gray-300 py-2 text-center text-gray-600 hover:bg-gray-50 transition"
->
-  Registrarse
-</Link>
-
-        </div>
       </div>
     </div>
   );
