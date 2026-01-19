@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Control de Acceso a Recursos Compartidos
 
-## Getting Started
+## 📌 Descripción del proyecto
+Este proyecto consiste en el desarrollo de una **aplicación web** para el control de acceso y uso de recursos compartidos, como proyectores, computadoras, herramientas, equipos deportivos y material audiovisual.
 
-First, run the development server:
+La aplicación busca reemplazar los métodos informales de control por un sistema digital centralizado.
 
+---
+
+## ❓ Problema que se aborda
+En escuelas, clubes, coworkings y pequeñas empresas, los recursos compartidos suelen ser utilizados sin un control adecuado, lo que genera:
+
+- Desconocimiento de quién tiene un recurso
+- Uso simultáneo no autorizado
+- Retrasos en devoluciones
+- Conflictos entre usuarios
+- Pérdida o mal uso del material
+
+---
+
+## 💡 Propuesta de solución
+La aplicación permitirá:
+
+- Visualizar recursos disponibles
+- Consultar su estado
+- Registrar préstamos y devoluciones
+- Mantener historial de uso
+
+---
+
+## 🎯 Objetivo
+Mejorar el control y la organización del uso de recursos compartidos mediante una aplicación web accesible y fácil de usar.
+
+---
+
+## 👥 Usuarios objetivo
+- Escuelas
+- Clubes
+- Coworkings
+- Pequeñas empresas
+
+---
+
+## 🧱 Tecnologías
+### Frontend
+- **Next.js**
+- React
+- TypeScript
+- Tailwind CSS
+
+### Backend
+- Node.js (definido por el equipo)
+
+### DevOps
+- Docker
+- GitHub Actions (CI/CD)
+
+---
+
+## 🧠 Arquitectura
+- **Frontend:** Interfaz de usuario (Login, dashboard, vistas)
+- **Backend:** Lógica del sistema y base de datos
+- **DevOps:** Contenedores y pipelines
+- **QA:** Pruebas del sistema
+
+---
+
+## 👨‍💻 Roles del equipo
+- **Frontend:** Desarrollo de la interfaz web
+- **Backend:** API y lógica del servidor
+- **DevOps:** Docker y CI/CD
+- **QA:** Pruebas
+
+---
+
+## 🚀 Frontend – Cómo ejecutar
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
