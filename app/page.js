@@ -1,61 +1,93 @@
 "use client";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function Home() {
+export default function LoginPage() {
+  const router = useRouter();
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    // 🔹 SIMULAMOS LOGIN CORRECTO
+    router.push("/panel");
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-8">
-        <h1 className="text-gray-500 text-2xl font-semibold text-center">
-          Iniciar sesión
-        </h1>
-        <p className="text-center text-gray-500 mt-2">
-          Usa tu correo y contraseña
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Tarjeta principal con sombras más suaves */}
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border border-gray-200">
+        
+        {/* Encabezado */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            ¡Bienvenido de nuevo!
+          </h1>
+          <p className="text-gray-600 text-lg">
+            Ingresa tus credenciales para continuar
+          </p>
+        </div>
 
-        <hr className="my-6" />
-
-        <form className="space-y-5">
-          <div>
-            <label className="text-gray-500 block text-sm font-medium">
-              Correo
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* Campo Correo */}
+          <div className="space-y-2">
+            <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
+              Correo electrónico
             </label>
             <input
               type="email"
-              placeholder="user@acme.com"
-              className="text-gray-500 mt-1 w-full rounded-md border px-3 py-2"
+              placeholder="ejemplo@correo.com"
+              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
+                         text-gray-800 placeholder-gray-500 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         transition-all duration-200"
+              required
             />
           </div>
 
-          <div>
-            <label className="text-gray-500 block text-sm font-medium">
+          {/* Campo Contraseña */}
+          <div className="space-y-2">
+            <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
               Contraseña
             </label>
             <input
               type="password"
-              className="text-gray-500 mt-1 w-full rounded-md border px-3 py-2"
+              placeholder="••••••••"
+              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
+                         text-gray-800 placeholder-gray-500 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         transition-all duration-200"
+              required
             />
           </div>
 
+          {/* Botón azul */}
           <button
             type="submit"
-            className="text-gray-500 w-full rounded-md border py-2"
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 
+                       text-white font-semibold py-3.5 rounded-xl
+                       hover:from-blue-700 hover:to-blue-800 
+                       active:scale-[0.98] transition-all duration-200
+                       shadow-lg hover:shadow-xl shadow-blue-200 hover:shadow-blue-300"
           >
-            Iniciar sesión
+            Enviar al sistema
           </button>
+
         </form>
 
-        {/* BOTÓN REGISTRARSE */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-500">
-            ¿No tienes cuenta?
+        {/* Enlace inferior */}
+        <div className="mt-10 pt-8 border-t border-gray-200 text-center">
+          <p className="text-gray-600">
+            ¿No tienes cuenta?{" "}
+            <Link 
+              href="/registro" 
+              className="font-semibold text-blue-600 hover:text-blue-700 
+                         underline underline-offset-4 decoration-2 
+                         hover:decoration-blue-700 transition-colors"
+            >
+              Regístrate aquí
+            </Link>
           </p>
-  <Link
-  href="/registro"
-  className="mt-2 block w-full rounded-md border border-gray-300 py-2 text-center text-gray-600 hover:bg-gray-50 transition"
->
-  Registrarse
-</Link>
-
         </div>
       </div>
     </div>
