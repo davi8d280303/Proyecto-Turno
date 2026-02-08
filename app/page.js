@@ -1,22 +1,30 @@
 "use client";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react"; // IMPORTADO
 import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  
+  // 1. Crear la referencia para el input de correo
+  const emailRef = useRef(null);
+
+  // 2. Controlar el foco al montar el componente (sin recargar)
+  useEffect(() => {
+    if (emailRef.current) {
+      emailRef.current.focus();
+    }
+  }, []);
 
   function handleSubmit(e) {
     e.preventDefault();
-    // 🔹 SIMULAMOS LOGIN CORRECTO
     router.push("/panel");
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Tarjeta principal con sombras más suaves */}
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border border-gray-200">
         
-        {/* Encabezado */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             ¡Bienvenido de nuevo!
@@ -26,15 +34,14 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Campo Correo */}
           <div className="space-y-2">
             <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
               Correo electrónico
             </label>
             <input
+              ref={emailRef} // 3. VINCULAMOS AL DOM AQUÍ
               type="email"
               placeholder="ejemplo@correo.com"
               className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
@@ -45,7 +52,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Campo Contraseña */}
           <div className="space-y-2">
             <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
               Contraseña
@@ -61,7 +67,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Botón azul */}
           <button
             type="submit"
             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 
@@ -75,7 +80,6 @@ export default function LoginPage() {
 
         </form>
 
-        {/* Enlace inferior */}
         <div className="mt-10 pt-8 border-t border-gray-200 text-center">
           <p className="text-gray-600">
             ¿No tienes cuenta?{" "}

@@ -1,10 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react"; // 1. Importar hooks
 import Link from "next/link";
 
 export default function RegistroPage() {
   const router = useRouter();
+  
+  // 2. Crear la referencia para el primer input
+  const nombreRef = useRef(null);
+
+  // 3. Efecto para controlar el foco al cargar la página
+  useEffect(() => {
+    if (nombreRef.current) {
+      nombreRef.current.focus();
+    }
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -36,6 +47,7 @@ export default function RegistroPage() {
               Nombre completo
             </label>
             <input
+              ref={nombreRef} // 4. Asignar la referencia aquí
               type="text"
               name="nombre"
               placeholder="Tu nombre completo"
