@@ -33,7 +33,7 @@ jobs:
       run: |
         echo "=== Verificación del build ==="
         if [ -f ".next/BUILD_ID" ]; then
-          BUILD_ID=\$(cat .next/BUILD_ID)
+          BUILD_ID=$(cat .next/BUILD_ID)
           echo "Build EXITOSO"
           echo "Build ID: \$BUILD_ID"
           echo "Next.js build completado correctamente"
