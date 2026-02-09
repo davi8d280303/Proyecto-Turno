@@ -1,34 +1,36 @@
-# Usamos Node 20 como base (que es la que ya tenías)
+# Usa esta versión si quieres optimización extra
 FROM node:20-alpine AS base
 
-# 1. Instalación de dependencias
+# 1. Dependencias
 FROM base AS deps
 WORKDIR /app
-# Copiamos los archivos de configuración de paquetes
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci --only=production
 
-# 2. Construcción (Build) de Next.js
+# 2. Builder
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Este comando es vital: genera la carpeta .next que contiene tu diseño y rutas
 RUN npm run build
 
-# 3. Producción (Imagen final ligera)
+# 3. Runner (producción)
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
+ENV PORT=3000
 
-# Copiamos solo lo necesario para que la imagen sea pequeña
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/package.json ./package.json
+
+USER nextjs
 
 EXPOSE 3000
 
-# Next.js por defecto se inicia con "npm start"
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

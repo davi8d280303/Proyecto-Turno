@@ -1,22 +1,62 @@
-name: CI Proyecto Turnos
+name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [CI-CD, main]  # Ahora sí incluye CI-CD
+  pull_request:
+    branches: [main]
 
 jobs:
-  run-project:
+  quality-check:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Clonar repositorio
-        uses: actions/checkout@v4
+    - name: Checkout código
+      uses: actions/checkout@v4
+    
+    - name: Configurar Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'  # Caching para más velocidad
+    
+    - name: Instalar dependencias
+      run: npm ci  # Mejor que npm install para CI
+    
+    - name: Linting (ESLint)
+      run: npm run lint
+    
+    - name: Build de Next.js
+      run: npm run build  #  Esto es lo que realmente necesitas
+    
+    - name: Verificar build
+      run: |
+        echo "=== Verificación del build ==="
+        if [ -d ".next" ]; then
+          echo " .next/ directory encontrado"
+          ls -la .next/
+        else
+          echo " ERROR: Build falló - no hay carpeta .next/"
+          exit 1
+        fi
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Ejecutar proyecto
-        run: node index.js
+  docker-operation:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/CI-CD'  # Solo en CI-CD
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Build de Docker
+      run: |
+        docker build -t inventario-front:test .
+    
+    - name: Probar contenedor
+      run: |
+        docker run -d --name test-container -p 3000:3000 inventario-front:test
+        sleep 5
+        docker ps
+        docker stop test-container
+        docker rm test-container
