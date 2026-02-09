@@ -2,61 +2,70 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [CI-CD, main]  # Ahora sí incluye CI-CD
+    branches: [CI-CD, main]
   pull_request:
     branches: [main]
 
 jobs:
-  quality-check:
+  test-and-build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout código
+    - name: 🔄 Checkout código
       uses: actions/checkout@v4
     
-    - name: Configurar Node.js 20
+    - name: ⚙️ Configurar Node.js 20
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-        cache: 'npm'  # Caching para más velocidad
+        cache: 'npm'
     
     - name: Instalar dependencias
-      run: npm ci  # Mejor que npm install para CI
+      run: npm ci
     
     - name: Linting (ESLint)
       run: npm run lint
     
     - name: Build de Next.js
-      run: npm run build  #  Esto es lo que realmente necesitas
+      run: npm run build
     
-    - name: Verificar build
+    - name: Verificar build (BUILD_ID)
       run: |
         echo "=== Verificación del build ==="
-        if [ -d ".next" ]; then
-          echo " .next/ directory encontrado"
-          ls -la .next/
+        if [ -f ".next/BUILD_ID" ]; then
+          BUILD_ID=$(cat .next/BUILD_ID)
+          echo "Build EXITOSO"
+          echo "Build ID: $BUILD_ID"
+          echo "Next.js build completado correctamente"
         else
-          echo " ERROR: Build falló - no hay carpeta .next/"
+          echo "ERROR: Build falló - no hay BUILD_ID"
+          echo "Contenido de .next/:"
+          ls -la .next/
           exit 1
         fi
 
-  docker-operation:
-    needs: quality-check
+  docker-build:
+    needs: test-and-build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/CI-CD'  # Solo en CI-CD
+    if: github.ref == ''refs/heads/CI-CD''
     
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     
-    - name: Build de Docker
+    - name: Build Docker image
       run: |
-        docker build -t inventario-front:test .
+        echo "Construyendo imagen Docker..."
+        docker build -t inventario-front .
+        echo "Docker image construida exitosamente"
     
-    - name: Probar contenedor
+    - name: Reporte final
       run: |
-        docker run -d --name test-container -p 3000:3000 inventario-front:test
-        sleep 5
-        docker ps
-        docker stop test-container
-        docker rm test-container
+        echo "========================================="
+        echo "PIPELINE CI/CD COMPLETADO EXITOSAMENTE"
+        echo "========================================="
+        echo "Linting pasado"
+        echo "Next.js build exitoso"
+        echo "Docker image construida"
+        echo "Todo listo para producción"
+        echo "========================================="

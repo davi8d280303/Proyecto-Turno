@@ -20,8 +20,14 @@ export default function Sidebar() {
   // Evitar errores de hidratación al leer localStorage
   useEffect(() => {
     const saved = localStorage.getItem("sidebar");
-    if (saved) setCollapsed(saved === "true");
-    setIsMounted(true);
+    
+    // Usar requestAnimationFrame para ambos setState
+    requestAnimationFrame(() => {
+      if (saved) {
+        setCollapsed(saved === "true");
+      }
+      setIsMounted(true);
+    });
   }, []);
 
   useEffect(() => {
