@@ -37,11 +37,15 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           <div className="space-y-2">
-            <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
+            <label 
+              htmlFor="email" 
+              className="block text-gray-700 font-medium text-sm uppercase tracking-wide"
+            >
               Correo electrónico
             </label>
             <input
               ref={emailRef} // 3. VINCULAMOS AL DOM AQUÍ
+              id="email"
               type="email"
               placeholder="ejemplo@correo.com"
               className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
@@ -53,10 +57,14 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
+            <label 
+              htmlFor="password"
+              className="block text-gray-700 font-medium text-sm uppercase tracking-wide"
+            >
               Contraseña
             </label>
             <input
+              id="password"
               type="password"
               placeholder="••••••••"
               className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
