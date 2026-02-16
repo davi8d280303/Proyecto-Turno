@@ -1,15 +1,13 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react"; // IMPORTADO
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
-  
-  // 1. Crear la referencia para el input de correo
   const emailRef = useRef(null);
 
-  // 2. Controlar el foco al montar el componente (sin recargar)
+  // foco automático al cargar
   useEffect(() => {
     if (emailRef.current) {
       emailRef.current.focus();
@@ -37,32 +35,42 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-8">
           
           <div className="space-y-2">
-            <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
+            <label 
+              htmlFor="email"
+              className="block text-gray-700 font-medium text-sm uppercase tracking-wide"
+            >
               Correo electrónico
             </label>
             <input
-              ref={emailRef} // 3. VINCULAMOS AL DOM AQUÍ
+              ref={emailRef}
+              id="email"
+              name="email"
               type="email"
               placeholder="ejemplo@correo.com"
-              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
-                         text-gray-800 placeholder-gray-500 
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                         transition-all duration-200"
+              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 
+                         rounded-xl text-gray-800 placeholder-gray-500 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 
+                         focus:border-transparent transition-all duration-200"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-gray-700 font-medium text-sm uppercase tracking-wide">
+            <label 
+              htmlFor="password"
+              className="block text-gray-700 font-medium text-sm uppercase tracking-wide"
+            >
               Contraseña
             </label>
             <input
+              id="password"
+              name="password"
               type="password"
               placeholder="••••••••"
-              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl 
-                         text-gray-800 placeholder-gray-500 
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                         transition-all duration-200"
+              className="w-full px-4 py-3.5 bg-gray-50 border border-gray-300 
+                         rounded-xl text-gray-800 placeholder-gray-500 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 
+                         focus:border-transparent transition-all duration-200"
               required
             />
           </div>
