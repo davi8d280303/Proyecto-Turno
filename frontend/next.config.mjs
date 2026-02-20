@@ -7,8 +7,18 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   turbopack: {
-    // Aseguramos que Turbopack use el directorio `frontend` como raíz absoluta
     root: path.join(__dirname),
+  },
+  
+  // 🚀 ESTO ES LO QUE FALTA PARA EL DEPLOY
+  async rewrites() {
+    return [
+      {
+        // Cuando el front pida algo a /api/..., lo enviará al backend
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/:path*`,
+      },
+    ]
   },
 };
 
