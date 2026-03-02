@@ -48,16 +48,9 @@ export default function LoginPage() {
         throw new Error('Email inválido');
       }
 
-      // Consumir API de login (comentado si el backend no lo implementó aún)
-      // const result = await loginUsuario(formData.email, formData.password);
-      // if (!result.success) {
-      //   throw new Error(result.error || 'Error al iniciar sesión');
-      // }
-
-      // Simular pausa (comentar en producción)
+      // Simular pausa
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // Usar credenciales de demo o guardar token
       localStorage.setItem(
         'usuario',
         JSON.stringify({
@@ -81,7 +74,12 @@ export default function LoginPage() {
       {/* Loader fullscreen */}
       {isLoading && <Loader isVisible fullscreen message="Iniciando sesión..." />}
 
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border border-gray-200">
+      {/* AQUÍ ESTÁN LAS ANIMACIONES: 
+          'animate-fade-up' para la entrada 
+          'animate-shake' si hay error */}
+      <div className={`w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border border-gray-200 
+        animate-fade-up ${error ? 'animate-shake' : ''}`}>
+        
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             ¡Bienvenido de nuevo!
@@ -126,7 +124,6 @@ export default function LoginPage() {
                          focus:border-transparent transition-all duration-200
                          disabled:opacity-60 disabled:cursor-not-allowed"
               required
-              aria-describedby="email-help"
             />
             <p id="email-help" className="text-xs text-gray-500">
               Usa un email válido
