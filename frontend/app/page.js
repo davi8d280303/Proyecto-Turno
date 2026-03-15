@@ -13,51 +13,38 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
-  // Foco automático al cargar
   useEffect(() => {
     if (emailRef.current) {
       emailRef.current.focus();
     }
   }, []);
 
-  // Manejar cambios en el formulario
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
-    setError(null); // Limpiar error al escribir
+    setError(null);
   };
 
-  // Manejar envío del formulario con asincronía
   async function handleSubmit(e) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      // Validar campos
       if (!formData.email || !formData.password) {
         throw new Error('Por favor completa todos los campos');
       }
 
-      // Validar email
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
         throw new Error('Email inválido');
       }
 
-      // Consumir API de login (comentado si el backend no lo implementó aún)
-      // const result = await loginUsuario(formData.email, formData.password);
-      // if (!result.success) {
-      //   throw new Error(result.error || 'Error al iniciar sesión');
-      // }
-
-      // Simular pausa (comentar en producción)
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      // Usar credenciales de demo o guardar token
       localStorage.setItem(
         'usuario',
         JSON.stringify({
@@ -66,7 +53,6 @@ export default function LoginPage() {
         })
       );
 
-      // Redirigir al panel
       router.push('/panel');
     } catch (err) {
       console.error('Error en login:', err);
@@ -77,11 +63,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Loader fullscreen */}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
       {isLoading && <Loader isVisible fullscreen message="Iniciando sesión..." />}
 
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border border-gray-200">
+      {/* AQUÍ ESTÁ LA MAGIA: Si hay error, se sacude. Si no, hace la entrada suave. */}
+      <div className={`w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border transition-colors duration-300 
+        ${error ? 'error-shake border-red-500' : 'border-gray-200 animacion-login'}`}>
+        
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             ¡Bienvenido de nuevo!
@@ -91,7 +79,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Mostrar error si existe */}
         {error && (
           <div
             className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm"
@@ -189,3 +176,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+// terminado en la parte del 15-03-2026
