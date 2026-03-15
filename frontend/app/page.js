@@ -176,3 +176,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+// terminado en la parte del 15-03-2026
