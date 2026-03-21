@@ -9,6 +9,8 @@ const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh-se
 const ACCESS_TOKEN_EXPIRES = parseExpiresIn(process.env.ACCESS_TOKEN_EXPIRES, 900);
 const REFRESH_TOKEN_EXPIRES = parseExpiresIn(process.env.REFRESH_TOKEN_EXPIRES, 604800);
 
+// --- Funciones Internas ---
+
 async function findUserByEmail(email) {
   const db = getSupabaseAdmin();
   const users = await db.restSelect('users', {
@@ -16,7 +18,6 @@ async function findUserByEmail(email) {
     limit: 1,
     filters: { email: `eq.${email.toLowerCase()}` },
   });
-
   return Array.isArray(users) ? users[0] : null;
 }
 
@@ -27,58 +28,70 @@ async function findUserById(id) {
     limit: 1,
     filters: { id: `eq.${id}` },
   });
-
   return Array.isArray(users) ? users[0] : null;
 }
 
-function buildTokenPayload(user) {
-  return {
-    sub: user.id,
-    role: user.role,
+async function issueAccessToken(user, sessionId) {
+  return signJwt({ 
+    sub: user.id, 
+    role: user.role, 
     area_id: user.area_id,
-  };
+    sid: sessionId, 
+    typ: 'access' 
+  }, ACCESS_TOKEN_SECRET, ACCESS_TOKEN_EXPIRES);
 }
 
-async function issueRefreshToken(userId) {
+async function enforceSessionLimit(userId, limit = 2) {
   const db = getSupabaseAdmin();
-  const tokenId = crypto.randomUUID();
-  const token = signJwt({ sub: userId, typ: 'refresh', jti: tokenId }, REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRES);
-  const tokenHash = sha256(token);
+  const activeSessions = await db.restSelect('auth_refresh_tokens', {
+    select: 'id,created_at',
+    filters: { 
+        user_id: `eq.${userId}`,
+        revoked_at: 'is.null'
+    },
+    order: 'created_at.asc'
+  });
 
+  if (activeSessions && activeSessions.length >= limit) {
+    const sessionsToRevoke = activeSessions.slice(0, (activeSessions.length - limit) + 1);
+    for (const session of sessionsToRevoke) {
+      await db.restUpdate('auth_refresh_tokens', 
+        { revoked_at: new Date().toISOString() }, 
+        { filters: { id: `eq.${session.id}` } }
+      );
+    }
+  }
+}
+
+async function issueRefreshToken(userId, userAgent = null, ipAddress = null) {
+  const db = getSupabaseAdmin();
+  await enforceSessionLimit(userId, 2);
+
+  const sessionId = crypto.randomUUID();
+  const token = signJwt({ sub: userId, typ: 'refresh', jti: sessionId }, REFRESH_TOKEN_SECRET, REFRESH_TOKEN_EXPIRES);
+  const tokenHash = sha256(token);
   const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRES * 1000).toISOString();
+  
   await db.restInsert('auth_refresh_tokens', {
-    id: tokenId,
+    id: sessionId,
     user_id: userId,
     token_hash: tokenHash,
     expires_at: expiresAt,
+    user_agent: userAgent,
+    ip_address: ipAddress
   });
 
-  return token;
+  return { token, sessionId };
 }
 
-async function issueAccessToken(user) {
-  return signJwt({ ...buildTokenPayload(user), typ: 'access' }, ACCESS_TOKEN_SECRET, ACCESS_TOKEN_EXPIRES);
-}
+// --- Funciones Exportadas ---
 
-async function login({ email, password }) {
-  if (!email || !password) {
-    throw new AppError('Email y contraseña son requeridos.', {
-      statusCode: 400,
-      code: 'VALIDATION_ERROR',
-      fields: {
-        ...(email ? {} : { email: 'Email requerido' }),
-        ...(password ? {} : { password: 'Contraseña requerida' }),
-      },
-    });
-  }
+async function login({ email, password, userAgent, ipAddress }) {
+  if (!email || !password) throw new AppError('Email y contraseña requeridos.', { statusCode: 400 });
 
-  const normalizedEmail = String(email).trim().toLowerCase();
-  const user = await findUserByEmail(normalizedEmail);
+  const user = await findUserByEmail(email);
   if (!user || !user.is_active || !verifyPassword(password, user.password_hash)) {
-    throw new AppError('Credenciales inválidas.', {
-      statusCode: 401,
-      code: 'AUTH_INVALID_CREDENTIALS',
-    });
+    throw new AppError('Credenciales inválidas.', { statusCode: 401 });
   }
 
   const db = getSupabaseAdmin();
@@ -86,69 +99,36 @@ async function login({ email, password }) {
     filters: { id: `eq.${user.id}` },
   });
 
-  const accessToken = await issueAccessToken(user);
-  const refreshToken = await issueRefreshToken(user.id);
+  const { token: refreshToken, sessionId } = await issueRefreshToken(user.id, userAgent, ipAddress);
+  const accessToken = await issueAccessToken(user, sessionId);
 
   return {
     accessToken,
     refreshToken,
     tokenType: 'Bearer',
     expiresIn: ACCESS_TOKEN_EXPIRES,
-    user: {
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      role: user.role,
-      area_id: user.area_id,
-    },
+    user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role },
   };
 }
 
 async function refreshSession(refreshToken) {
-  if (!refreshToken) {
-    throw new AppError('Refresh token requerido.', {
-      statusCode: 400,
-      code: 'REFRESH_TOKEN_REQUIRED',
-    });
-  }
+  if (!refreshToken) throw new AppError('Refresh token requerido.', { statusCode: 400 });
 
   let payload;
   try {
     payload = verifyJwt(refreshToken, REFRESH_TOKEN_SECRET);
-  } catch (error) {
-    throw new AppError('Refresh token inválido.', {
-      statusCode: 401,
-      code: 'REFRESH_TOKEN_INVALID',
-    });
-  }
-
-  if (payload.typ !== 'refresh' || !payload.jti) {
-    throw new AppError('Refresh token inválido.', {
-      statusCode: 401,
-      code: 'REFRESH_TOKEN_INVALID',
-    });
-  }
+  } catch (e) { throw new AppError('Token inválido.', { statusCode: 401 }); }
 
   const db = getSupabaseAdmin();
   const records = await db.restSelect('auth_refresh_tokens', {
-    select: 'id,user_id,token_hash,expires_at,revoked_at',
+    select: '*',
     limit: 1,
     filters: { id: `eq.${payload.jti}` },
   });
 
   const record = Array.isArray(records) ? records[0] : null;
-  if (!record || record.revoked_at || new Date(record.expires_at) <= new Date()) {
-    throw new AppError('Refresh token expirado o revocado.', {
-      statusCode: 401,
-      code: 'REFRESH_TOKEN_REVOKED',
-    });
-  }
-
-  if (record.token_hash !== sha256(refreshToken)) {
-    throw new AppError('Refresh token inválido.', {
-      statusCode: 401,
-      code: 'REFRESH_TOKEN_INVALID',
-    });
+  if (!record || record.revoked_at || new Date(record.expires_at) <= new Date() || record.token_hash !== sha256(refreshToken)) {
+    throw new AppError('Sesión inválida o expirada.', { statusCode: 401 });
   }
 
   await db.restUpdate('auth_refresh_tokens', { revoked_at: new Date().toISOString() }, {
@@ -156,37 +136,53 @@ async function refreshSession(refreshToken) {
   });
 
   const user = await findUserById(record.user_id);
-  if (!user || !user.is_active) {
-    throw new AppError('Usuario no disponible.', {
-      statusCode: 401,
-      code: 'USER_INACTIVE',
-    });
-  }
-
+  const newSession = await issueRefreshToken(user.id, record.user_agent, record.ip_address);
+  
   return {
-    accessToken: await issueAccessToken(user),
-    refreshToken: await issueRefreshToken(user.id),
+    accessToken: await issueAccessToken(user, newSession.sessionId),
+    refreshToken: newSession.token,
     tokenType: 'Bearer',
     expiresIn: ACCESS_TOKEN_EXPIRES,
   };
 }
 
-async function getProfile(userId) {
-  const user = await findUserById(userId);
-  if (!user) {
-    throw new AppError('Usuario no encontrado.', {
-      statusCode: 404,
-      code: 'USER_NOT_FOUND',
-    });
-  }
+async function logout(sessionId) {
+  const db = getSupabaseAdmin();
+  await db.restUpdate('auth_refresh_tokens', { revoked_at: new Date().toISOString() }, {
+    filters: { id: `eq.${sessionId}` },
+  });
+}
 
-  return user;
+async function isSessionActive(sessionId) {
+  if (!sessionId) return false;
+  const db = getSupabaseAdmin();
+  const records = await db.restSelect('auth_refresh_tokens', {
+    select: 'id,revoked_at,expires_at',
+    limit: 1,
+    filters: { id: `eq.${sessionId}` },
+  });
+  const record = Array.isArray(records) ? records[0] : null;
+  return record && !record.revoked_at && new Date(record.expires_at) > new Date();
+}
+
+async function getUserSessions(userId) {
+    const db = getSupabaseAdmin();
+    return await db.restSelect('auth_refresh_tokens', {
+        select: 'id, user_agent, ip_address, created_at',
+        filters: { 
+            user_id: `eq.${userId}`,
+            revoked_at: 'is.null'
+        }
+    });
 }
 
 module.exports = {
   login,
   refreshSession,
-  getProfile,
+  getProfile: findUserById,
+  logout,
+  isSessionActive,
+  getUserSessions,
   verifyAccessToken(token) {
     return verifyJwt(token, ACCESS_TOKEN_SECRET);
   },

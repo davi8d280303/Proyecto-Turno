@@ -6,11 +6,16 @@ const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'public';
 const hasServiceCredentials = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 const hasAnonCredentials = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
-function buildQuery(endpoint, { select = '*', limit, filters = {} } = {}) {
+function buildQuery(endpoint, { select = '*', limit, filters = {}, order } = {}) {
   endpoint.searchParams.set('select', select);
 
   if (typeof limit === 'number') {
     endpoint.searchParams.set('limit', String(limit));
+  }
+
+  // ✅ FIX: soporte para order
+  if (order) {
+    endpoint.searchParams.set('order', order);
   }
 
   Object.entries(filters).forEach(([key, value]) => {
@@ -26,6 +31,7 @@ function buildClient(key) {
     select,
     limit,
     filters,
+    order,
     body,
     signal,
     prefer,
@@ -33,7 +39,7 @@ function buildClient(key) {
     const endpoint = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
 
     if (method === 'GET' || method === 'PATCH' || method === 'DELETE') {
-      buildQuery(endpoint, { select, limit, filters });
+      buildQuery(endpoint, { select, limit, filters, order });
     }
 
     const response = await fetch(endpoint.toString(), {
@@ -84,6 +90,7 @@ function buildClient(key) {
         body,
         select: options.select || '*',
         filters: options.filters,
+        order: options.order,
         prefer: options.prefer || 'return=representation',
       });
     },
@@ -92,6 +99,7 @@ function buildClient(key) {
         method: 'DELETE',
         select: options.select || '*',
         filters: options.filters,
+        order: options.order,
         prefer: options.prefer || 'return=representation',
       });
     },
@@ -100,35 +108,23 @@ function buildClient(key) {
 
 function getSupabaseAdmin() {
   if (!hasServiceCredentials) {
-    const error = new Error('Supabase admin client no configurado. Revisa SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.');
+    const error = new Error('Supabase admin client no configurado.');
     error.statusCode = 500;
     throw error;
   }
-
   return buildClient(SUPABASE_SERVICE_ROLE_KEY);
 }
 
 function getSupabasePublic() {
   if (!hasAnonCredentials) {
-    const error = new Error('Supabase public client no configurado. Revisa SUPABASE_URL y SUPABASE_ANON_KEY.');
+    const error = new Error('Supabase public client no configurado.');
     error.statusCode = 500;
     throw error;
   }
-
   return buildClient(SUPABASE_ANON_KEY);
-}
-
-function getSupabaseConfigStatus() {
-  return {
-    urlConfigured: Boolean(SUPABASE_URL),
-    serviceRoleConfigured: Boolean(SUPABASE_SERVICE_ROLE_KEY),
-    anonKeyConfigured: Boolean(SUPABASE_ANON_KEY),
-    schema: SUPABASE_SCHEMA,
-  };
 }
 
 module.exports = {
   getSupabaseAdmin,
   getSupabasePublic,
-  getSupabaseConfigStatus,
 };
