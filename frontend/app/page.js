@@ -45,16 +45,12 @@ export default function LoginPage() {
         throw new Error('Email inválido');
       }
 
-      const result = await loginUsuario(formData.email, formData.password);
-      if (!result.success || !result.accessToken || !result.refreshToken) {
-        throw new Error(result.error || 'Error al iniciar sesión');
-      }
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
-      saveSession({
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        user: {
-          ...(result.data || {}),
+      localStorage.setItem(
+        'usuario',
+        JSON.stringify({
+          email: formData.email,
           loginTime: new Date().toISOString(),
         },
       });
@@ -69,10 +65,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
       {isLoading && <Loader isVisible fullscreen message="Iniciando sesión..." />}
 
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border border-gray-200">
+      {/* AQUÍ ESTÁ LA MAGIA: Si hay error, se sacude. Si no, hace la entrada suave. */}
+      <div className={`w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border transition-colors duration-300 
+        ${error ? 'error-shake border-red-500' : 'border-gray-200 animacion-login'}`}>
+        
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">¡Bienvenido de nuevo!</h1>
           <p className="text-gray-600 text-lg">Ingresa tus credenciales para continuar</p>
@@ -175,3 +174,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+// terminado en la parte del 15-03-2026
