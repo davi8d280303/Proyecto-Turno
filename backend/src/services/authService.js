@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { getSupabaseAdmin } = require('../config/supabaseClient');
 const { signJwt, verifyJwt, parseExpiresIn } = require('../utils/jwt');
-const { verifyPassword, sha256 } = require('../utils/password');
+const { verifyPassword, sha256, hashPassword } = require('../utils/password');
 const AppError = require('../utils/appError');
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'dev-access-secret-change-me';
@@ -46,8 +46,8 @@ async function enforceSessionLimit(userId, limit = 2) {
   const activeSessions = await db.restSelect('auth_refresh_tokens', {
     select: 'id,created_at',
     filters: { 
-        user_id: `eq.${userId}`,
-        revoked_at: 'is.null'
+      user_id: `eq.${userId}`,
+      revoked_at: 'is.null'
     },
     order: 'created_at.asc'
   });
@@ -82,6 +82,94 @@ async function issueRefreshToken(userId, userAgent = null, ipAddress = null) {
   });
 
   return { token, sessionId };
+}
+
+// =============================
+// PASSWORD RECOVERY
+// =============================
+
+async function requestPasswordRecovery(email) {
+  const db = getSupabaseAdmin();
+
+  const user = await findUserByEmail(email);
+
+  if (!user) {
+    return { message: 'Si el correo existe, se enviará un enlace.' };
+  }
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = sha256(rawToken);
+  const expiresAt = new Date(Date.now() + (1000 * 60 * 20)).toISOString();
+
+  await db.restInsert('password_recovery_tokens', {
+    user_id: user.id,
+    token_hash: tokenHash,
+    expires_at: expiresAt
+  });
+
+  console.log(`🔗 Token recuperación: ${rawToken}`);
+
+  return { message: 'Si el correo existe, se enviará un enlace.' };
+}
+
+async function validateRecoveryToken(token) {
+  const db = getSupabaseAdmin();
+
+  const tokenHash = sha256(token);
+
+  const records = await db.restSelect('password_recovery_tokens', {
+    select: '*',
+    limit: 1,
+    filters: { token_hash: `eq.${tokenHash}` },
+  });
+
+  const record = Array.isArray(records) ? records[0] : null;
+
+  if (!record) return { status: 'invalid' };
+  if (record.used_at) return { status: 'used' };
+  if (new Date(record.expires_at) <= new Date()) return { status: 'expired' };
+
+  return { status: 'valid' };
+}
+
+async function resetPassword(token, newPassword) {
+  const db = getSupabaseAdmin();
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new AppError('Contraseña insegura.', { statusCode: 400 });
+  }
+
+  const tokenHash = sha256(token);
+
+  const records = await db.restSelect('password_recovery_tokens', {
+    select: '*',
+    limit: 1,
+    filters: { token_hash: `eq.${tokenHash}` },
+  });
+
+  const record = Array.isArray(records) ? records[0] : null;
+
+  if (!record) throw new AppError('Token inválido.', { statusCode: 400 });
+  if (record.used_at) throw new AppError('Token ya usado.', { statusCode: 400 });
+  if (new Date(record.expires_at) <= new Date()) {
+    throw new AppError('Token expirado.', { statusCode: 400 });
+  }
+
+  const newHash = hashPassword(newPassword);
+
+  await db.restUpdate('users', {
+    password_hash: newHash
+  }, {
+    filters: { id: `eq.${record.user_id}` }
+  });
+
+  await db.restUpdate('password_recovery_tokens', {
+    used_at: new Date().toISOString()
+  }, {
+    filters: { id: `eq.${record.id}` }
+  });
+
+  return { message: 'Contraseña actualizada correctamente.' };
 }
 
 // --- Funciones Exportadas ---
@@ -166,14 +254,14 @@ async function isSessionActive(sessionId) {
 }
 
 async function getUserSessions(userId) {
-    const db = getSupabaseAdmin();
-    return await db.restSelect('auth_refresh_tokens', {
-        select: 'id, user_agent, ip_address, created_at',
-        filters: { 
-            user_id: `eq.${userId}`,
-            revoked_at: 'is.null'
-        }
-    });
+  const db = getSupabaseAdmin();
+  return await db.restSelect('auth_refresh_tokens', {
+    select: 'id, user_agent, ip_address, created_at',
+    filters: { 
+      user_id: `eq.${userId}`,
+      revoked_at: 'is.null'
+    }
+  });
 }
 
 module.exports = {
@@ -186,4 +274,9 @@ module.exports = {
   verifyAccessToken(token) {
     return verifyJwt(token, ACCESS_TOKEN_SECRET);
   },
+
+  // 👇 NUEVO
+  requestPasswordRecovery,
+  validateRecoveryToken,
+  resetPassword,
 };
