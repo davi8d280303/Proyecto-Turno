@@ -1,19 +1,21 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { loginUsuario } from '@/lib/api';
-import Loader from '@/app/components/Loader';
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { clearSession, loginUsuario, saveSession } from "@/lib/api";
+import Loader from "@/app/components/Loader";
 
 export default function LoginPage() {
   const router = useRouter();
   const emailRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ email: "", password: "" });
 
   useEffect(() => {
+    clearSession();
+
     if (emailRef.current) {
       emailRef.current.focus();
     }
@@ -35,28 +37,28 @@ export default function LoginPage() {
 
     try {
       if (!formData.email || !formData.password) {
-        throw new Error('Por favor completa todos los campos');
+        throw new Error("Por favor completa todos los campos");
       }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
-        throw new Error('Email inválido');
+        throw new Error("Email inválido");
       }
 
       await new Promise((resolve) => setTimeout(resolve, 800));
 
       localStorage.setItem(
-        'usuario',
+        "usuario",
         JSON.stringify({
           email: formData.email,
           loginTime: new Date().toISOString(),
-        })
+        }),
       );
 
-      router.push('/panel');
+      router.push("/panel");
     } catch (err) {
-      console.error('Error en login:', err);
-      setError(err.message || 'Error al iniciar sesión. Intenta de nuevo.');
+      console.error("Error en login:", err);
+      setError(err.message || "Error al iniciar sesión. Intenta de nuevo.");
     } finally {
       setIsLoading(false);
     }
@@ -64,12 +66,15 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-      {isLoading && <Loader isVisible fullscreen message="Iniciando sesión..." />}
+      {isLoading && (
+        <Loader isVisible fullscreen message="Iniciando sesión..." />
+      )}
 
       {/* AQUÍ ESTÁ LA MAGIA: Si hay error, se sacude. Si no, hace la entrada suave. */}
-      <div className={`w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border transition-colors duration-300 
-        ${error ? 'error-shake border-red-500' : 'border-gray-200 animacion-login'}`}>
-        
+      <div
+        className={`w-full max-w-lg bg-white rounded-2xl shadow-xl p-10 border transition-colors duration-300 
+        ${error ? "error-shake border-red-500" : "border-gray-200 animacion-login"}`}
+      >
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             ¡Bienvenido de nuevo!
@@ -155,13 +160,13 @@ export default function LoginPage() {
                        disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none"
             aria-busy={isLoading}
           >
-            {isLoading ? 'Iniciando sesión...' : 'Enviar al sistema'}
+            {isLoading ? "Iniciando sesión..." : "Enviar al sistema"}
           </button>
         </form>
 
         <div className="mt-10 pt-8 border-t border-gray-200 text-center">
           <p className="text-gray-600">
-            ¿No tienes cuenta?{' '}
+            ¿No tienes cuenta?{" "}
             <Link
               href="/registro"
               className="font-semibold text-blue-600 hover:text-blue-700 

@@ -1,27 +1,84 @@
 /**
- * Rutas de Usuarios
- * Consume data de JSONPlaceholder API
+ * Rutas de Usuarios (Supabase + Auth)
  */
 const express = require('express');
-const axios = require('axios');
-const router = express.Router();
+const { getSupabaseAdmin } = require('../config/supabaseClient');
+const isAuth = require('../middleware/isAuth');
+const checkRole = require('../middleware/checkRole');
 
-const API_URL = 'https://jsonplaceholder.typicode.com';
+const router = express.Router();
 
 /**
  * GET /api/usuarios
- * Obtiene todos los usuarios
+ * super_admin: todos
+ * admin: solo su área
  */
-router.get('/', async (req, res, next) => {
+router.get('/', isAuth, checkRole('super_admin', 'admin'), async (req, res, next) => {
   try {
-    console.log('GET /api/usuarios');
-    const response = await axios.get(`${API_URL}/users`);
-    
+    const db = getSupabaseAdmin();
+    const filters = {};
+
+    if (req.auth.role === 'admin') {
+      filters.area_id = `eq.${req.auth.areaId}`;
+    }
+
+    const users = await db.restSelect('users', {
+      select: 'id,email,full_name,role,area_id,is_active,last_login_at,created_at',
+      filters,
+    });
+
     res.json({
       success: true,
-      data: response.data,
-      total: response.data.length,
-      timestamp: new Date().toISOString()
+      data: users,
+      total: users.length,
+      scope: req.auth.role === 'super_admin' ? 'global' : 'area',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/usuarios/login
+ */
+router.post('/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const db = getSupabaseAdmin();
+
+    const users = await db.restSelect('users', {
+      select: '*',
+      filters: { email: `eq.${email}` },
+      limit: 1,
+    });
+
+    const usuario = Array.isArray(users) ? users[0] : null;
+
+    if (!usuario) {
+      return res.status(401).json({
+        success: false,
+        error: 'Credenciales inválidas',
+      });
+    }
+
+    // ⚠️ Aquí deberías usar bcrypt en producción
+    if (usuario.password !== password) {
+      return res.status(401).json({
+        success: false,
+        error: 'Credenciales inválidas',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: usuario.id,
+        email: usuario.email,
+        nombre: usuario.full_name,
+      },
+      message: 'Login exitoso',
     });
   } catch (error) {
     next(error);
@@ -30,57 +87,40 @@ router.get('/', async (req, res, next) => {
 
 /**
  * GET /api/usuarios/:id
- * Obtiene un usuario por ID
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', isAuth, checkRole('super_admin', 'admin'), async (req, res, next) => {
   try {
-    const { id } = req.params;
-    console.log(`GET /api/usuarios/${id}`);
-    
-    const response = await axios.get(`${API_URL}/users/${id}`);
-    
-    if (!response.data) {
+    const db = getSupabaseAdmin();
+
+    const filters = { id: `eq.${req.params.id}` };
+
+    if (req.auth.role === 'admin') {
+      filters.area_id = `eq.${req.auth.areaId}`;
+    }
+
+    const users = await db.restSelect('users', {
+      select: 'id,email,full_name,role,area_id,is_active,last_login_at,created_at',
+      limit: 1,
+      filters,
+    });
+
+    const user = Array.isArray(users) ? users[0] : null;
+
+    if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'Usuario no encontrado'
+        code: 'USER_NOT_FOUND',
+        error: 'Usuario no encontrado',
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
-      data: response.data,
-      timestamp: new Date().toISOString()
+      data: user,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    if (error.response?.status === 404) {
-      return res.status(404).json({
-        success: false,
-        error: 'Usuario no encontrado'
-      });
-    }
-    next(error);
-  }
-});
-
-/**
- * GET /api/usuarios/:id/posts
- * Obtiene los posts de un usuario
- */
-router.get('/:id/posts', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    console.log(`GET /api/usuarios/${id}/posts`);
-    
-    const response = await axios.get(`${API_URL}/users/${id}/posts`);
-    
-    res.json({
-      success: true,
-      data: response.data,
-      total: response.data.length,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 

@@ -5,97 +5,115 @@
 ```
 backend/
 ├── src/
-│   ├── loaders/          # Funciones reutilizables para cargar datos
-│   │   └── apiLoader.js  # Loaders para consumir APIs
-│   ├── middleware/       # Middlewares de Express
-│   │   ├── errorHandler.js  # Manejo global de errores
-│   │   └── corsConfig.js    # Configuración CORS
-│   ├── routes/           # Rutas de la API
-│   │   └── index.js      # Rutas principales
-│   ├── services/         # Servicios (próximamente)
-│   └── index.js          # Archivo principal
+│   ├── config/
+│   │   └── supabaseClient.js
+│   ├── middleware/
+│   │   ├── corsConfig.js
+│   │   ├── errorHandler.js
+│   │   ├── isAuth.js
+│   │   ├── checkRole.js
+│   │   ├── checkAreaAccess.js
+│   │   └── loginRateLimit.js
+│   ├── routes/
+│   │   ├── index.js
+│   │   ├── auth.js
+│   │   └── usuarios.js
+│   ├── services/
+│   │   ├── authService.js
+│   │   └── supabaseHealthService.js
+│   ├── utils/
+│   │   ├── appError.js
+│   │   ├── jwt.js
+│   │   ├── password.js
+│   │   └── base64url.js
+│   └── index.js
+├── supabase/
+│   └── schema.sql
+├── tests/
+│   ├── supabase-config.test.js
+│   ├── auth-utils.test.js
+│   └── rbac-middleware.test.js
 ├── .env.example
-├── .gitignore
 └── package.json
 ```
 
 ## 🚀 Instalación y Uso
 
-### 1. Instalar dependencias
 ```bash
 cd backend
 npm install
-```
-
-### 2. Configurar variables de entorno
-```bash
 cp .env.example .env
-```
-
-### 3. Ejecutar en desarrollo
-```bash
 npm run dev
-```
-
-### 4. Ejecutar en producción
-```bash
-npm start
-```
-
-## 📡 Loaders Disponibles
-
-### `loadFromAPI(endpoint)`
-Carga datos de una API externa.
-```javascript
-const { loadFromAPI } = require('./loaders/apiLoader');
-const data = await loadFromAPI('https://api.ejemplo.com/datos');
-```
-
-### `loadMultiple(endpoints)`
-Carga datos de múltiples APIs en paralelo.
-```javascript
-const results = await loadMultiple([
-  'https://api.com/usuarios',
-  'https://api.com/prestamos'
-]);
-```
-
-### `loadWithRetry(endpoint, retries)`
-Carga datos con reintentos automáticos.
-```javascript
-const data = await loadWithRetry('https://api.ejemplo.com/datos', 3);
 ```
 
 ## 🛣️ Rutas Disponibles
 
-- `GET /api` - Información del servidor
-- `GET /api/health` - Health check
+- `GET /api` - Información general
+- `GET /api/health` - Health check API
+- `GET /api/health/supabase` - Health check Supabase
+- `POST /api/auth/login` - Login con Bearer + refresh token
+- `POST /api/auth/refresh` - Rotación de refresh token
+- `GET /api/auth/me` - Perfil autenticado
+- `GET /api/usuarios` - Lista usuarios (scope por rol)
+- `GET /api/usuarios/:id` - Usuario por ID (scope por rol)
 
-## ⚙️ Configuración
+## 🔐 RBAC implementado
 
-Variables de entorno en `.env`:
-```
+- `super_admin`: alcance global
+- `admin`: alcance por área (`area_id`)
+- `usuario`: acceso restringido (según rutas protegidas)
+
+## ⚙️ Variables de entorno
+
+```env
 PORT=5000
 NODE_ENV=development
 FRONTEND_URL=http://localhost:3000
+
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_SCHEMA=public
+
+ACCESS_TOKEN_SECRET=change-this-access-secret
+REFRESH_TOKEN_SECRET=change-this-refresh-secret
+ACCESS_TOKEN_EXPIRES=15m
+REFRESH_TOKEN_EXPIRES=7d
+
+LOGIN_RATE_LIMIT_WINDOW_MS=60000
+LOGIN_RATE_LIMIT_MAX=8
 ```
 
-## ❌ Manejo de Errores
+## 🗄️ Supabase: arranque
 
-Los errores se manejan globalmente y retornan:
-```json
-{
-  "success": false,
-  "error": "Descripción del error",
-  "timestamp": "2024-02-19T10:30:00.000Z",
-  "path": "/api/endpoint"
-}
+1. Crear proyecto en Supabase.
+2. Ejecutar `backend/supabase/schema.sql` en SQL Editor.
+3. Generar hashes de contraseña en formato `scrypt$...`:
+
+```bash
+npm run hash:password -- "TuPassword123!"
 ```
 
-## 🔜 Próximos Pasos
+4. Editar `backend/supabase/seed.sql` reemplazando `REPLACE_WITH_SCRYPT_HASH_*`.
+5. Ejecutar `backend/supabase/seed.sql` en SQL Editor.
+6. Probar conexión: `GET /api/health/supabase`.
 
-1. Crear rutas para usuarios
-2. Crear rutas para préstamos
-3. Integrar consumo de APIs externas
-4. Añadir validación de datos
-5. Implementar autenticación
+## ✅ Checks
+
+```bash
+npm test
+npm run check
+```
+
+## 🧪 Smoke test del flujo auth (paso siguiente)
+
+Con backend levantado y usuarios seed cargados:
+
+```bash
+npm run smoke:auth -- "superadmin@demo.com" "TuPassword123!"
+```
+
+Esto valida de punta a punta:
+1. `POST /api/auth/login`
+2. `GET /api/auth/me`
+3. `POST /api/auth/refresh`

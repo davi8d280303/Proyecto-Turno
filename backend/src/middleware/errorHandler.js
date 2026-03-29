@@ -3,16 +3,19 @@
  */
 
 const errorHandler = (err, req, res, next) => {
-  console.error("Error:", err.message);
+  console.error('Error:', err.message);
 
   const statusCode = err.statusCode || 500;
-  const message = err.message || "Error interno del servidor";
+  const code = err.code || 'INTERNAL_ERROR';
+  const message = err.message || 'Error interno del servidor';
 
   res.status(statusCode).json({
     success: false,
+    code,
     error: message,
+    fields: err.fields || null,
     timestamp: new Date().toISOString(),
-    path: req.path
+    path: req.path,
   });
 };
 
@@ -22,13 +25,14 @@ const errorHandler = (err, req, res, next) => {
 const notFoundHandler = (req, res) => {
   res.status(404).json({
     success: false,
-    error: "Ruta no encontrada",
+    code: 'ROUTE_NOT_FOUND',
+    error: 'Ruta no encontrada',
     path: req.path,
-    method: req.method
+    method: req.method,
   });
 };
 
 module.exports = {
   errorHandler,
-  notFoundHandler
+  notFoundHandler,
 };
