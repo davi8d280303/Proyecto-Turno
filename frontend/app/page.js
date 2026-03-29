@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { loginUsuario } from '@/lib/api';
+import { clearSession, loginUsuario, saveSession } from '@/lib/api';
 import Loader from '@/app/components/Loader';
 
 export default function LoginPage() {
@@ -14,6 +14,8 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({ email: '', password: '' });
 
   useEffect(() => {
+    clearSession();
+
     if (emailRef.current) {
       emailRef.current.focus();
     }
@@ -50,8 +52,8 @@ export default function LoginPage() {
         JSON.stringify({
           email: formData.email,
           loginTime: new Date().toISOString(),
-        })
-      );
+        },
+      });
 
       router.push('/panel');
     } catch (err) {
@@ -71,12 +73,8 @@ export default function LoginPage() {
         ${error ? 'error-shake border-red-500' : 'border-gray-200 animacion-login'}`}>
         
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            ¡Bienvenido de nuevo!
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Ingresa tus credenciales para continuar
-          </p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">¡Bienvenido de nuevo!</h1>
+          <p className="text-gray-600 text-lg">Ingresa tus credenciales para continuar</p>
         </div>
 
         {error && (

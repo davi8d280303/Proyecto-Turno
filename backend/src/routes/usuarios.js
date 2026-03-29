@@ -1,30 +1,38 @@
 /**
- * Rutas de Usuarios - Conectadas a Supabase
+ * Rutas de Usuarios (Supabase + Auth)
  */
 const express = require('express');
+const { getSupabaseAdmin } = require('../config/supabaseClient');
+const isAuth = require('../middleware/isAuth');
+const checkRole = require('../middleware/checkRole');
+
 const router = express.Router();
-const supabase = require('../loaders/supabaseClient'); // Importamos tu cliente de Supabase
 
 /**
  * GET /api/usuarios
- * Obtiene todos los usuarios de la tabla de Supabase
+ * super_admin: todos
+ * admin: solo su área
  */
-router.get('/', async (req, res, next) => {
+router.get('/', isAuth, checkRole('super_admin', 'admin'), async (req, res, next) => {
   try {
-    console.log('GET /api/usuarios desde Supabase');
-    
-    // Consultamos la tabla 'usuarios'
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('*');
+    const db = getSupabaseAdmin();
+    const filters = {};
 
-    if (error) throw error;
-    
+    if (req.auth.role === 'admin') {
+      filters.area_id = `eq.${req.auth.areaId}`;
+    }
+
+    const users = await db.restSelect('users', {
+      select: 'id,email,full_name,role,area_id,is_active,last_login_at,created_at',
+      filters,
+    });
+
     res.json({
       success: true,
-      data: data,
-      total: data.length,
-      timestamp: new Date().toISOString()
+      data: users,
+      total: users.length,
+      scope: req.auth.role === 'super_admin' ? 'global' : 'area',
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     next(error);
@@ -33,38 +41,44 @@ router.get('/', async (req, res, next) => {
 
 /**
  * POST /api/usuarios/login
- * Nueva ruta para el Login real
  */
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    console.log(`Intentando login para: ${email}`);
 
-    const { data: usuario, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email)
-      .single();
+    const db = getSupabaseAdmin();
 
-    if (error || !usuario) {
+    const users = await db.restSelect('users', {
+      select: '*',
+      filters: { email: `eq.${email}` },
+      limit: 1,
+    });
+
+    const usuario = Array.isArray(users) ? users[0] : null;
+
+    if (!usuario) {
       return res.status(401).json({
         success: false,
-        error: 'Credenciales inválidas'
+        error: 'Credenciales inválidas',
       });
     }
 
-    // Validación simple (En el futuro usa bcrypt para comparar contraseñas encriptadas)
+    // ⚠️ Aquí deberías usar bcrypt en producción
     if (usuario.password !== password) {
       return res.status(401).json({
         success: false,
-        error: 'Credenciales inválidas'
+        error: 'Credenciales inválidas',
       });
     }
 
     res.json({
       success: true,
-      data: { id: usuario.id, email: usuario.email, nombre: usuario.nombre },
-      message: 'Login exitoso'
+      data: {
+        id: usuario.id,
+        email: usuario.email,
+        nombre: usuario.full_name,
+      },
+      message: 'Login exitoso',
     });
   } catch (error) {
     next(error);
@@ -73,33 +87,40 @@ router.post('/login', async (req, res, next) => {
 
 /**
  * GET /api/usuarios/:id
- * Obtiene un usuario por ID desde Supabase
  */
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', isAuth, checkRole('super_admin', 'admin'), async (req, res, next) => {
   try {
-    const { id } = req.params;
-    console.log(`GET /api/usuarios/${id} desde Supabase`);
-    
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error || !data) {
+    const db = getSupabaseAdmin();
+
+    const filters = { id: `eq.${req.params.id}` };
+
+    if (req.auth.role === 'admin') {
+      filters.area_id = `eq.${req.auth.areaId}`;
+    }
+
+    const users = await db.restSelect('users', {
+      select: 'id,email,full_name,role,area_id,is_active,last_login_at,created_at',
+      limit: 1,
+      filters,
+    });
+
+    const user = Array.isArray(users) ? users[0] : null;
+
+    if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'Usuario no encontrado'
+        code: 'USER_NOT_FOUND',
+        error: 'Usuario no encontrado',
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
-      data: data,
-      timestamp: new Date().toISOString()
+      data: user,
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 });
 
