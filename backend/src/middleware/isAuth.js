@@ -9,19 +9,22 @@ async function isAuth(req, res, next) {
     }
 
     const token = authHeader.slice(7).trim();
+    
+    // 1. Validar firma del token
     const payload = verifyAccessToken(token);
 
-    // Tarea: Validar sesión en cada petición (Revisar si el SID no fue revocado en DB)
+    // 2. Validar en Supabase (usando tu tabla auth_refresh_tokens real)
     const active = await isSessionActive(payload.sid);
     if (!active) {
       throw new AppError('La sesión ha sido invalidada o ha expirado.', { statusCode: 401 });
     }
 
+    // 3. Dejar pasar al usuario
     req.auth = {
       userId: payload.sub,
       role: payload.role,
       areaId: payload.area_id,
-      sessionId: payload.sid, // Guardamos el SID para poder hacer logout
+      sessionId: payload.sid,
       exp: payload.exp,
     };
 
