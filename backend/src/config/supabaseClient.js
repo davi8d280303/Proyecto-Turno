@@ -124,7 +124,16 @@ function getSupabasePublic() {
   return buildClient(SUPABASE_ANON_KEY);
 }
 
+function getSupabaseConfigStatus() {
+  return {
+    urlConfigured: Boolean(SUPABASE_URL),
+    serviceRoleConfigured: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+    anonConfigured: Boolean(SUPABASE_ANON_KEY),
+  };
+}
+
 module.exports = {
   getSupabaseAdmin,
   getSupabasePublic,
+  getSupabaseConfigStatus, // ← agregar esto
 };

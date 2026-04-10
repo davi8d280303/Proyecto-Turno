@@ -1,6 +1,3 @@
-/**
- * Servidor principal - Express
- */
 require('dotenv').config();
 const express = require('express');
 const corsMiddleware = require('./middleware/corsConfig');
@@ -27,24 +24,10 @@ app.use('/api', indexRoutes);
 // Rutas no encontradas
 app.use(notFoundHandler);
 
-// Manejador de errores (debe ser último)
+// Manejador de errores
 app.use(errorHandler);
 
-// Iniciar servidor con manejo de errores de bind (p. ej. EADDRINUSE)
+// Servidor
 const server = app.listen(PORT, () => {
   console.log(`\n🚀 Servidor corriendo en puerto ${PORT}`);
-  console.log(`📍 http://localhost:${PORT}/api`);
-  console.log(`🔄 Health check: http://localhost:${PORT}/api/health\n`);
 });
-
-server.on('error', (err) => {
-  if (err && err.code === 'EADDRINUSE') {
-    console.error(`\n⛔ Error: puerto ${PORT} ya está en uso. Mata el proceso que lo utiliza o cambia la variable PORT.`);
-    console.error('Sugerencias: `netstat -ano | findstr :5000` -> `taskkill /PID <pid> /F` o `npx kill-port 5000`.');
-    process.exit(1);
-  }
-  console.error(err);
-  process.exit(1);
-});
-
-module.exports = app;

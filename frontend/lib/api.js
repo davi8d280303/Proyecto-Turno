@@ -1,15 +1,18 @@
 /**
  * Servicio de API - Funciones para consumir la API del backend
- * Maneja: Request/Response, Errores, Timeouts, Reintentos
+ * Maneja: Request/Response, Errores, Timeouts, Reintentos y Gestión de Inventario
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-const API_TIMEOUT = parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10);
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_TIMEOUT = parseInt(
+  process.env.NEXT_PUBLIC_API_TIMEOUT || "30000",
+  10,
+);
 const AUTH_BASE = `${API_URL}/auth`;
 
-const ACCESS_TOKEN_KEY = 'accessToken';
-const REFRESH_TOKEN_KEY = 'refreshToken';
-const USER_SESSION_KEY = 'usuario';
+const ACCESS_TOKEN_KEY = "accessToken";
+const REFRESH_TOKEN_KEY = "refreshToken";
+const USER_SESSION_KEY = "usuario";
 
 /**
  * Clase personalizada para errores de API
@@ -17,7 +20,7 @@ const USER_SESSION_KEY = 'usuario';
 export class APIError extends Error {
   constructor(message, status, data) {
     super(message);
-    this.name = 'APIError';
+    this.name = "APIError";
     this.status = status;
     this.data = data;
   }
@@ -35,7 +38,7 @@ async function fetchWithTimeout(url, options = {}) {
       ...options,
       signal: controller.signal,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options.headers,
       },
     });
@@ -48,7 +51,7 @@ async function fetchWithTimeout(url, options = {}) {
       throw new APIError(
         data?.error || `Error ${response.status}`,
         response.status,
-        data
+        data,
       );
     }
 
@@ -56,20 +59,24 @@ async function fetchWithTimeout(url, options = {}) {
   } catch (error) {
     clearTimeout(timeoutId);
 
-    if (error.name === 'AbortError') {
-      throw new APIError('Tiempo de espera agotado', 408, null);
+    if (error.name === "AbortError") {
+      throw new APIError("Tiempo de espera agotado", 408, null);
     }
 
     if (error instanceof APIError) {
       throw error;
     }
 
-    throw new APIError(error.message || 'Error de red', 0, null);
+    throw new APIError(error.message || "Error de red", 0, null);
   }
 }
 
+/* ==========================================
+   GESTIÓN DE SESIÓN
+   ========================================== */
+
 export function saveSession({ accessToken, refreshToken, user }) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   if (accessToken) {
     localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
@@ -85,24 +92,25 @@ export function saveSession({ accessToken, refreshToken, user }) {
 }
 
 export function clearSession() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
 
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_SESSION_KEY);
 }
 
-/**
- * POST - Iniciar sesión
- */
+/* ==========================================
+   MÓDULO DE AUTENTICACIÓN Y USUARIOS
+   ========================================== */
+
 export async function loginUsuario(email, password) {
   try {
     if (!email || !password) {
-      throw new APIError('Email y contraseña requeridos', 400);
+      throw new APIError("Email y contraseña requeridos", 400);
     }
 
     const data = await fetchWithTimeout(`${AUTH_BASE}/login`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ email, password }),
     });
 
@@ -116,20 +124,17 @@ export async function loginUsuario(email, password) {
       error: null,
     };
   } catch (error) {
-    console.error('Error en loginUsuario:', error);
+    console.error("Error en loginUsuario:", error);
     return {
       success: false,
       data: null,
       accessToken: null,
       refreshToken: null,
-      error: error.message || 'Error al iniciar sesión',
+      error: error.message || "Error al iniciar sesión",
     };
   }
 }
 
-/**
- * GET - Obtener todos los usuarios
- */
 export async function getUsuarios(accessToken) {
   try {
     const data = await fetchWithTimeout(`${API_URL}/usuarios`, {
@@ -143,23 +148,20 @@ export async function getUsuarios(accessToken) {
       error: null,
     };
   } catch (error) {
-    console.error('Error en getUsuarios:', error);
+    console.error("Error en getUsuarios:", error);
     return {
       success: false,
       data: [],
       total: 0,
-      error: error.message || 'Error al obtener usuarios',
+      error: error.message || "Error al obtener usuarios",
     };
   }
 }
 
-/**
- * GET - Obtener usuario por ID
- */
 export async function getUsuarioById(id, accessToken) {
   try {
     if (!id) {
-      throw new APIError('ID de usuario requerido', 400);
+      throw new APIError("ID de usuario requerido", 400);
     }
 
     const data = await fetchWithTimeout(`${API_URL}/usuarios/${id}`, {
@@ -176,10 +178,74 @@ export async function getUsuarioById(id, accessToken) {
     return {
       success: false,
       data: null,
-      error: error.message || 'Error al obtener usuario',
+      error: error.message || "Error al obtener usuario",
     };
   }
 }
+
+export async function registrarUsuario(full_name, email, password) {
+  try {
+    if (!full_name || !email || !password) {
+      throw new APIError("Todos los campos son requeridos", 400);
+    }
+
+    const data = await fetchWithTimeout(`${AUTH_BASE}/register`, {
+      method: "POST",
+      body: JSON.stringify({ full_name, email, password }),
+    });
+
+    return {
+      success: true,
+      data: data?.data || null,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Error en registrarUsuario:", error);
+    return {
+      success: false,
+      data: null,
+      error: error.message || "Error al registrarse",
+    };
+  }
+}
+
+/* ==========================================
+   MÓDULO DE INVENTARIO (OPTIMIZADO)
+   ========================================== */
+
+export async function getInventario(accessToken) {
+  try {
+    const data = await fetchWithTimeout(`${API_URL}/inventario`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return { success: true, data: data?.data || [] };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function crearItemInventario(itemData, accessToken) {
+  try {
+    // Verificación preventiva
+    if (!accessToken)
+      throw new Error("Sesión expirada. Inicie sesión nuevamente.");
+
+    const data = await fetchWithTimeout(`${API_URL}/inventario`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(itemData),
+    });
+
+    return { success: true, data: data?.data || null };
+  } catch (error) {
+    console.error("Error en crearItemInventario:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/* ==========================================
+   MÓDULO DE PRÉSTAMOS
+   ========================================== */
 
 export async function getPrestamos() {
   try {
@@ -191,12 +257,12 @@ export async function getPrestamos() {
       error: null,
     };
   } catch (error) {
-    console.error('Error en getPrestamos:', error);
+    console.error("Error en getPrestamos:", error);
     return {
       success: false,
       data: [],
       total: 0,
-      error: error.message || 'Error al obtener préstamos',
+      error: error.message || "Error al obtener préstamos",
     };
   }
 }
@@ -204,7 +270,7 @@ export async function getPrestamos() {
 export async function getPrestamoById(id) {
   try {
     if (!id) {
-      throw new APIError('ID de préstamo requerido', 400);
+      throw new APIError("ID de préstamo requerido", 400);
     }
 
     const data = await fetchWithTimeout(`${API_URL}/prestamos/${id}`);
@@ -218,7 +284,7 @@ export async function getPrestamoById(id) {
     return {
       success: false,
       data: null,
-      error: error.message || 'Error al obtener préstamo',
+      error: error.message || "Error al obtener préstamo",
     };
   }
 }
@@ -226,11 +292,11 @@ export async function getPrestamoById(id) {
 export async function crearPrestamo(prestamoData) {
   try {
     if (!prestamoData) {
-      throw new APIError('Datos del préstamo requeridos', 400);
+      throw new APIError("Datos del préstamo requeridos", 400);
     }
 
     const data = await fetchWithTimeout(`${API_URL}/prestamos`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(prestamoData),
     });
 
@@ -240,11 +306,11 @@ export async function crearPrestamo(prestamoData) {
       error: null,
     };
   } catch (error) {
-    console.error('Error en crearPrestamo:', error);
+    console.error("Error en crearPrestamo:", error);
     return {
       success: false,
       data: null,
-      error: error.message || 'Error al crear préstamo',
+      error: error.message || "Error al crear préstamo",
     };
   }
 }
@@ -252,11 +318,11 @@ export async function crearPrestamo(prestamoData) {
 export async function actualizarPrestamo(id, prestamoData) {
   try {
     if (!id || !prestamoData) {
-      throw new APIError('ID y datos del préstamo requeridos', 400);
+      throw new APIError("ID y datos del préstamo requeridos", 400);
     }
 
     const data = await fetchWithTimeout(`${API_URL}/prestamos/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(prestamoData),
     });
 
@@ -270,33 +336,40 @@ export async function actualizarPrestamo(id, prestamoData) {
     return {
       success: false,
       data: null,
-      error: error.message || 'Error al actualizar préstamo',
+      error: error.message || "Error al actualizar préstamo",
     };
   }
 }
+
+/* ==========================================
+   OTROS
+   ========================================== */
 
 export async function healthCheck() {
   try {
     const data = await fetchWithTimeout(`${API_URL}/health`);
     return {
       success: true,
-      status: data?.status || 'OK',
+      status: data?.status || "OK",
       error: null,
     };
   } catch (error) {
-    console.error('Error en healthCheck:', error);
+    console.error("Error en healthCheck:", error);
     return {
       success: false,
-      status: 'ERROR',
-      error: error.message || 'API no disponible',
+      status: "ERROR",
+      error: error.message || "API no disponible",
     };
   }
 }
 
+// OBJETO CONSOLIDADO PARA EXPORTACIÓN
 const apiService = {
   getUsuarios,
   getUsuarioById,
   loginUsuario,
+  getInventario, // Exportado
+  crearItemInventario, // Exportado
   getPrestamos,
   getPrestamoById,
   crearPrestamo,
@@ -304,6 +377,7 @@ const apiService = {
   healthCheck,
   saveSession,
   clearSession,
+  registrarUsuario,
 };
 
 export default apiService;

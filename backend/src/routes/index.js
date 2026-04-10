@@ -7,6 +7,8 @@ const usuariosRoutes = require('./usuarios');
 const authRoutes = require('./auth');
 const { checkSupabaseConnection } = require('../services/supabaseHealthService');
 const { getSupabaseConfigStatus } = require('../config/supabaseClient');
+const inventarioRoutes = require('./inventario'); 
+
 
 // Health check
 router.get('/health', (req, res) => {
@@ -70,5 +72,11 @@ router.get('/', (req, res) => {
 // Rutas principales
 router.use('/auth', authRoutes);
 router.use('/usuarios', usuariosRoutes);
+router.use('/inventario', inventarioRoutes);
+
+// Health check para verificar que la API está viva
+router.get('/health', (req, res) => {
+  res.json({ success: true, status: 'OK', uptime: process.uptime() });
+});
 
 module.exports = router;
