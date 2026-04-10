@@ -111,6 +111,32 @@ async function login({ email, password, userAgent, ipAddress }) {
   };
 }
 
+async function register({ email, password, full_name }) {
+  if (!email || !password) {
+    throw new AppError("Email y password requeridos", { statusCode: 400 });
+  }
+
+  const db = getSupabaseAdmin();
+
+  // Verificar si ya existe
+  const existing = await findUserByEmail(email);
+  if (existing) {
+    throw new AppError("El usuario ya existe", { statusCode: 400 });
+  }
+
+  const password_hash = await hashPassword(password);
+
+  const user = await db.restInsert("users", {
+    email: email.toLowerCase(),
+    full_name,
+    password_hash,
+    role: "user",
+    is_active: true,
+  });
+
+  return user;
+}
+
 async function refreshSession(refreshToken) {
   if (!refreshToken) throw new AppError('Refresh token requerido.', { statusCode: 400 });
 
@@ -183,6 +209,7 @@ module.exports = {
   logout,
   isSessionActive,
   getUserSessions,
+   register,
   verifyAccessToken(token) {
     return verifyJwt(token, ACCESS_TOKEN_SECRET);
   },
