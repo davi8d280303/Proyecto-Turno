@@ -4,14 +4,11 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import {
   Package, ClipboardList, Users, Settings,
-  Clock, CheckCircle2, TrendingUp, Boxes,
-  ArrowRight, ShieldCheck, AlertCircle,
+  Clock, CheckCircle2, TrendingUp, ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 import apiService, { getSessionUser } from "@/lib/api";
 
-// ─────────────────────────────────────────────
-// TARJETA DE MÉTRICA
-// ─────────────────────────────────────────────
 function MetricCard({ label, value, icon: Icon, color, loading }) {
   return (
     <div className={`bg-white rounded-xl border-2 p-5 flex items-center gap-4 ${color}`}>
@@ -19,20 +16,16 @@ function MetricCard({ label, value, icon: Icon, color, loading }) {
         <Icon size={22} className="opacity-80" />
       </div>
       <div>
-        {loading ? (
-          <div className="h-8 w-12 bg-gray-200 rounded animate-pulse mb-1" />
-        ) : (
-          <p className="text-3xl font-black leading-none">{value}</p>
-        )}
+        {loading
+          ? <div className="h-8 w-12 bg-gray-200 rounded animate-pulse mb-1" />
+          : <p className="text-3xl font-black leading-none">{value}</p>
+        }
         <p className="text-xs font-bold uppercase tracking-wide opacity-60 mt-1">{label}</p>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────
-// TARJETA DE NAVEGACIÓN
-// ─────────────────────────────────────────────
 function NavCard({ title, description, href, icon: Icon, delay }) {
   return (
     <Link href={href}>
@@ -61,19 +54,15 @@ function NavCard({ title, description, href, icon: Icon, delay }) {
   );
 }
 
-// ─────────────────────────────────────────────
-// PÁGINA PRINCIPAL
-// ─────────────────────────────────────────────
 export default function PanelPage() {
   const [stats,   setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const user        = getSessionUser();
+  const user         = getSessionUser();
   const isSuperAdmin = user?.role === "super_admin";
   const isAdmin      = user?.role === "admin" || isSuperAdmin;
   const nombre       = user?.full_name?.split(" ")[0] || "Usuario";
 
-  // Saludo según la hora
   const saludo = (() => {
     const h = new Date().getHours();
     if (h < 12) return "Buenos días";
@@ -81,40 +70,33 @@ export default function PanelPage() {
     return "Buenas noches";
   })();
 
-  // ── Cargar métricas del sistema ────────────
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [resInv, resPrestamos, resUsuarios] = await Promise.all([
+      const [resInv, resPrestamos] = await Promise.all([
         apiService.getInventario(),
         apiService.getPrestamos(),
-        isAdmin ? apiService.getUsuarios() : Promise.resolve({ success: false, data: [] }),
       ]);
-
-      const inventario  = resInv.success      ? resInv.data      : [];
-      const prestamos   = resPrestamos.success ? resPrestamos.data : [];
-      const usuarios    = resUsuarios.success  ? resUsuarios.data  : [];
-
+      const inventario = resInv.success      ? resInv.data      : [];
+      const prestamos  = resPrestamos.success ? resPrestamos.data : [];
       setStats({
-        totalInventario:   inventario.length,
-        disponibles:       inventario.filter((i) => i.estado === "disponible").length,
-        enUso:             inventario.filter((i) => i.estado === "en_uso").length,
-        prestamosActivos:  prestamos.filter((p)  => p.estado === "activo").length,
-        totalPrestamos:    prestamos.length,
-        totalUsuarios:     usuarios.length,
+        totalInventario:  inventario.length,
+        disponibles:      inventario.filter((i) => i.estado === "disponible").length,
+        enUso:            inventario.filter((i) => i.estado === "en_uso").length,
+        prestamosActivos: prestamos.filter((p)  => p.estado === "activo").length,
       });
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // ── Tarjetas de navegación según rol ──────
+  // Tarjetas según rol — sin "Recursos" aquí
   const navCards = [
     {
       title:       "Inventario",
-      description: "Consulta y gestiona todos los artículos registrados en el sistema.",
+      description: "Consulta y gestiona los artículos registrados.",
       href:        "/panel/inventario",
       icon:        Package,
       visible:     true,
@@ -122,38 +104,28 @@ export default function PanelPage() {
     {
       title:       "Préstamos",
       description: isAdmin
-        ? "Registra nuevos préstamos y gestiona las devoluciones."
+        ? "Registra préstamos y gestiona devoluciones."
         : "Consulta tus préstamos activos.",
       href:        "/prestamos",
       icon:        ClipboardList,
       visible:     true,
     },
     {
-      title:       "Recursos",
-      description: "Explora las áreas del sistema y el catálogo completo de artículos.",
-      href:        "/recursos",
-      icon:        Boxes,
-      visible:     true,
-    },
-    {
       title:       "Usuarios",
-      description: "Administra cuentas, roles y áreas de los usuarios del sistema.",
+      description: "Administra cuentas, roles y áreas.",
       href:        "/panel/usuarios",
       icon:        Users,
       visible:     isSuperAdmin,
     },
     {
       title:       "Configuración",
-      description: "Gestiona las áreas del sistema y parámetros generales.",
+      description: "Gestiona las áreas y asigna artículos del inventario.",
       href:        "/panel/configuracion",
       icon:        Settings,
       visible:     isSuperAdmin,
     },
   ].filter((c) => c.visible);
 
-  // ─────────────────────────────────────────
-  // RENDER
-  // ─────────────────────────────────────────
   return (
     <div className="p-6 max-w-7xl mx-auto">
 
@@ -173,41 +145,17 @@ export default function PanelPage() {
         </div>
       </motion.div>
 
-      {/* MÉTRICAS — solo para admins */}
+      {/* MÉTRICAS */}
       {isAdmin && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-          <MetricCard
-            label="Artículos totales"
-            value={stats?.totalInventario ?? "—"}
-            icon={Package}
-            color="text-[#002B49] border-blue-100"
-            loading={loading}
-          />
-          <MetricCard
-            label="Disponibles"
-            value={stats?.disponibles ?? "—"}
-            icon={CheckCircle2}
-            color="text-emerald-700 border-emerald-100"
-            loading={loading}
-          />
-          <MetricCard
-            label="En préstamo"
-            value={stats?.enUso ?? "—"}
-            icon={Clock}
-            color="text-yellow-700 border-yellow-100"
-            loading={loading}
-          />
-          <MetricCard
-            label="Préstamos activos"
-            value={stats?.prestamosActivos ?? "—"}
-            icon={TrendingUp}
-            color="text-purple-700 border-purple-100"
-            loading={loading}
-          />
+          <MetricCard label="Total artículos"  value={stats?.totalInventario  ?? "—"} icon={Package}      color="text-[#002B49] border-blue-100"      loading={loading} />
+          <MetricCard label="Disponibles"      value={stats?.disponibles      ?? "—"} icon={CheckCircle2} color="text-emerald-700 border-emerald-100"  loading={loading} />
+          <MetricCard label="En uso"           value={stats?.enUso            ?? "—"} icon={Clock}        color="text-yellow-700 border-yellow-100"    loading={loading} />
+          <MetricCard label="Préstamos activos" value={stats?.prestamosActivos ?? "—"} icon={TrendingUp}  color="text-purple-700 border-purple-100"    loading={loading} />
         </div>
       )}
 
-      {/* ALERTA si hay préstamos activos — para usuarios normales */}
+      {/* ALERTA préstamos activos para usuario normal */}
       {!isAdmin && stats?.prestamosActivos > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -217,17 +165,17 @@ export default function PanelPage() {
         >
           <AlertCircle size={18} className="flex-shrink-0" />
           <p className="text-sm font-semibold">
-            Tienes <strong>{stats.prestamosActivos}</strong> artículo{stats.prestamosActivos > 1 ? "s" : ""} en préstamo activo.{" "}
-            <Link href="/prestamos" className="underline font-bold">Ver préstamos →</Link>
+            Tienes <strong>{stats.prestamosActivos}</strong> artículo{stats.prestamosActivos > 1 ? "s" : ""} en préstamo.{" "}
+            <Link href="/prestamos" className="underline font-bold">Ver →</Link>
           </p>
         </motion.div>
       )}
 
-      {/* TARJETAS DE NAVEGACIÓN */}
-      <div className="mb-4">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+      {/* TARJETAS */}
+      <div>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
           Accesos rápidos
-        </h2>
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {navCards.map((card, i) => (
             <NavCard key={card.href} {...card} delay={i * 0.07} />
