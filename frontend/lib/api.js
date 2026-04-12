@@ -243,6 +243,23 @@ export async function crearItemInventario(itemData, accessToken) {
   }
 }
 
+export async function eliminarItemInventario(id, accessToken) {
+  try {
+    if (!id) throw new Error("ID requerido para eliminar.");
+    if (!accessToken) throw new Error("Sesión expirada. Inicia sesión nuevamente.");
+
+    await fetchWithTimeout(`${API_URL}/inventario/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error en eliminarItemInventario:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 /* ==========================================
    MÓDULO DE PRÉSTAMOS
    ========================================== */
@@ -378,6 +395,7 @@ const apiService = {
   saveSession,
   clearSession,
   registrarUsuario,
+  eliminarItemInventario,
 };
 
 export default apiService;
