@@ -448,6 +448,36 @@ export async function healthCheck() {
 }
 
 // ─────────────────────────────────────────────
+// PERFIL
+// ─────────────────────────────────────────────
+
+// Actualizar nombre del perfil
+export async function actualizarPerfil(datos) {
+  try {
+    const data = await authRequest(`${AUTH_BASE}/me`, {
+      method: "PATCH",
+      body:   JSON.stringify(datos),
+    });
+    return { success: true, data: data?.data || null, error: null };
+  } catch (error) {
+    return { success: false, data: null, error: error.message };
+  }
+}
+
+// Cambiar contraseña
+export async function cambiarPassword({ currentPassword, newPassword }) {
+  try {
+    const data = await authRequest(`${AUTH_BASE}/password`, {
+      method: "PATCH",
+      body:   JSON.stringify({ currentPassword, newPassword }),
+    });
+    return { success: true, data: data?.data || null, error: null };
+  } catch (error) {
+    return { success: false, data: null, error: error.message };
+  }
+}
+
+// ─────────────────────────────────────────────
 // EXPORT DEFAULT — objeto consolidado
 // ─────────────────────────────────────────────
 
@@ -480,6 +510,9 @@ const apiService = {
   healthCheck,
   actualizarUsuario,
   toggleUsuario,
+  //perfil
+  actualizarPerfil,
+  cambiarPassword,
 };
 
 export default apiService;
