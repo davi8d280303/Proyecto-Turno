@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { usePathname } from 'next/navigation';
-import { useEffect, useRef } from 'react';
-import Sidebar from './Sidebar';
-import Topbar from './Topbar';
+import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
 
 export default function MainLayout({ children }) {
   const pathname = usePathname();
@@ -12,7 +12,7 @@ export default function MainLayout({ children }) {
   useEffect(() => {
     if (mainRef.current) {
       mainRef.current.focus();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [pathname]);
 
@@ -27,7 +27,7 @@ export default function MainLayout({ children }) {
           ref={mainRef}
           tabIndex={-1}
           role="main"
-          className="flex-1 p-6 outline-none animate-in fade-in duration-700 ease-in-out"
+          className="flex-1 p-6 outline-none"
           key={pathname}
         >
           {children}

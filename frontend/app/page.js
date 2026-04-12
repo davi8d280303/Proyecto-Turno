@@ -40,20 +40,17 @@ export default function LoginPage() {
         throw new Error("Por favor completa todos los campos");
       }
 
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        throw new Error("Email inválido");
+      const result = await loginUsuario(formData.email, formData.password);
+
+      if (!result.success) {
+        throw new Error(result.error || "Credenciales incorrectas");
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      localStorage.setItem(
-        "usuario",
-        JSON.stringify({
-          email: formData.email,
-          loginTime: new Date().toISOString(),
-        }),
-      );
+      saveSession({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: result.data,
+      });
 
       router.push("/panel");
     } catch (err) {

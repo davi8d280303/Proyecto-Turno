@@ -1,167 +1,410 @@
 "use client";
-import React, { useState } from 'react';
-import * as m from "motion/react-client"; // Usando la importación que nos funcionó
-import { AnimatePresence } from "motion/react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  History, Search, Filter, Download,
+  Package, User, Clock, CheckCircle2,
+  TrendingUp, RotateCcw, Calendar,
+} from "lucide-react";
+import apiService, { getSessionUser } from "@/lib/api";
 
-export default function GestionPrestamos() {
-  const [tabActiva, setTabActiva] = useState('activos');
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function formatFecha(dateStr) {
+  if (!dateStr) return "—";
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(dateStr));
+}
 
-  const prestamosActivos = [
-    { id: "R-001", equipo: "Proyector Epson X12", usuario: "María López", estado: "En uso", color: "bg-emerald-100 text-emerald-700", desde: "2026-01-15 09:00", vence: "2026-01-15 16:00", notas: "Reunión aula 3" },
-    { id: "R-023", equipo: "Laptop Dell Inspiron", usuario: "Juan Pérez", estado: "Overdue", color: "bg-red-100 text-red-700", desde: "2026-01-14 10:30", vence: "2026-01-20 18:00", notas: "Mantenimiento pendiente" }
-  ];
+function formatFechaCorta(dateStr) {
+  if (!dateStr) return "—";
+  return new Intl.DateTimeFormat("es-MX", { dateStyle: "short" }).format(new Date(dateStr));
+}
 
-  const historial = [
-    { id: "H-100", recurso: "Equipo de sonido", usuario: "Claudia Ruiz", inicio: "2025-12-01 10:00", devuelto: "2025-12-02 15:00", condicion: "Bueno" },
-    { id: "H-097", recurso: "Cámara Canon", usuario: "Diego Torres", inicio: "2025-11-28 09:00", devuelto: "2025-12-01 18:00", condicion: "Bien (sin daños)" },
-    { id: "H-092", recurso: "Proyector Epson X12", usuario: "Ana Gómez", inicio: "2025-11-10 08:00", devuelto: "2025-11-10 14:30", condicion: "Con detalle en cable" }
-  ];
+// Calcula cuántos días/horas duró un préstamo
+function duracion(inicio, fin) {
+  if (!inicio || !fin) return "—";
+  const ms      = new Date(fin) - new Date(inicio);
+  const horas   = Math.floor(ms / (1000 * 60 * 60));
+  const dias    = Math.floor(horas / 24);
+  if (dias > 0)  return `${dias}d ${horas % 24}h`;
+  if (horas > 0) return `${horas}h`;
+  return "< 1h";
+}
 
-  // Configuración de animación para las tarjetas/filas
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, x: -20 },
-    show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
-  };
-
+function EstadoBadge({ estado }) {
+  if (estado === "activo") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase
+                       bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded-full">
+        <Clock size={10} /> En préstamo
+      </span>
+    );
+  }
   return (
-    <div className="min-h-screen bg-[#e5e5e5] p-8 text-slate-800">
-      
-      {/* HEADER SUPERIOR */}
-      <m.div 
-        initial={{ opacity: 0, y: -20 }} 
-        animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-start mb-10"
-      >
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase
+                     bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+      <CheckCircle2 size={10} /> Devuelto
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────
+// TARJETAS DE ESTADÍSTICAS
+// ─────────────────────────────────────────────
+function StatCard({ label, value, icon: Icon, color }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`bg-white rounded-xl border-2 p-4 flex items-center gap-4 ${color}`}
+    >
+      <div className="w-12 h-12 rounded-xl bg-current/10 flex items-center justify-center flex-shrink-0">
+        <Icon size={22} className="opacity-80" />
+      </div>
+      <div>
+        <p className="text-3xl font-black">{value}</p>
+        <p className="text-xs font-bold uppercase tracking-wide opacity-70">{label}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// EXPORTAR CSV
+// ─────────────────────────────────────────────
+function exportarCSV(datos) {
+  const encabezados = ["ID", "Artículo", "Categoría", "Usuario", "Email", "Estado", "Prestado", "Devuelto", "Duración", "Notas"];
+  const filas = datos.map((p) => [
+    p.id,
+    p.articulo?.nombre    || "—",
+    p.articulo?.categoria || "—",
+    p.usuario?.full_name  || "—",
+    p.usuario?.email      || "—",
+    p.estado,
+    formatFechaCorta(p.prestado_en),
+    formatFechaCorta(p.devuelto_en),
+    duracion(p.prestado_en, p.devuelto_en),
+    p.notas || "",
+  ]);
+
+  const contenido = [encabezados, ...filas]
+    .map((fila) => fila.map((v) => `"${v}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob(["\uFEFF" + contenido], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `historial_prestamos_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────
+// FILA DE LA TABLA
+// ─────────────────────────────────────────────
+function FilaPrestamo({ prestamo, index }) {
+  return (
+    <motion.tr
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+    >
+      {/* Artículo */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Package size={14} className="text-gray-400 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-gray-800 text-sm">{prestamo.articulo?.nombre || "—"}</p>
+            {prestamo.articulo?.categoria && (
+              <p className="text-[10px] text-gray-400">{prestamo.articulo.categoria}</p>
+            )}
+          </div>
+        </div>
+      </td>
+
+      {/* Usuario */}
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <User size={14} className="text-gray-400 flex-shrink-0" />
+          <div>
+            <p className="font-semibold text-gray-800 text-sm">{prestamo.usuario?.full_name || "—"}</p>
+            <p className="text-[10px] text-gray-400">{prestamo.usuario?.email}</p>
+          </div>
+        </div>
+      </td>
+
+      {/* Estado */}
+      <td className="px-4 py-3">
+        <EstadoBadge estado={prestamo.estado} />
+      </td>
+
+      {/* Fecha préstamo */}
+      <td className="px-4 py-3 text-xs text-gray-600">
+        {formatFecha(prestamo.prestado_en)}
+      </td>
+
+      {/* Fecha devolución */}
+      <td className="px-4 py-3 text-xs text-gray-600">
+        {prestamo.devuelto_en ? formatFecha(prestamo.devuelto_en) : (
+          <span className="text-yellow-600 font-bold">Pendiente</span>
+        )}
+      </td>
+
+      {/* Duración */}
+      <td className="px-4 py-3 text-xs text-gray-600 font-mono">
+        {prestamo.devuelto_en
+          ? duracion(prestamo.prestado_en, prestamo.devuelto_en)
+          : <span className="text-yellow-600">En curso</span>
+        }
+      </td>
+
+      {/* Notas */}
+      <td className="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate" title={prestamo.notas}>
+        {prestamo.notas || <span className="text-gray-300">—</span>}
+      </td>
+    </motion.tr>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PÁGINA PRINCIPAL
+// ─────────────────────────────────────────────
+export default function HistorialPage() {
+  const [prestamos,    setPrestamos]    = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [busqueda,     setBusqueda]     = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [filtroPeriodo, setFiltroPeriodo] = useState("todo"); // "hoy" | "semana" | "mes" | "todo"
+
+  const user    = getSessionUser();
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  // ── Cargar todos los préstamos ─────────────
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiService.getPrestamos();
+      if (res.success) setPrestamos(res.data);
+      else setError(res.error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // ── Filtros combinados con useMemo ─────────
+  // useMemo evita recalcular el filtro en cada render,
+  // solo lo recalcula cuando cambian los datos o los filtros
+  const prestamosFiltrados = useMemo(() => {
+    const ahora = new Date();
+
+    return prestamos.filter((p) => {
+      // Filtro de estado
+      if (filtroEstado !== "todos" && p.estado !== filtroEstado) return false;
+
+      // Filtro de período
+      if (filtroPeriodo !== "todo") {
+        const fecha = new Date(p.prestado_en);
+        if (filtroPeriodo === "hoy") {
+          if (fecha.toDateString() !== ahora.toDateString()) return false;
+        } else if (filtroPeriodo === "semana") {
+          const hace7Dias = new Date(ahora);
+          hace7Dias.setDate(ahora.getDate() - 7);
+          if (fecha < hace7Dias) return false;
+        } else if (filtroPeriodo === "mes") {
+          if (
+            fecha.getMonth()    !== ahora.getMonth() ||
+            fecha.getFullYear() !== ahora.getFullYear()
+          ) return false;
+        }
+      }
+
+      // Filtro de búsqueda
+      const q = busqueda.toLowerCase();
+      if (!q) return true;
+      return (
+        p.articulo?.nombre?.toLowerCase().includes(q)    ||
+        p.usuario?.full_name?.toLowerCase().includes(q)  ||
+        p.usuario?.email?.toLowerCase().includes(q)      ||
+        p.notas?.toLowerCase().includes(q)
+      );
+    });
+  }, [prestamos, filtroEstado, filtroPeriodo, busqueda]);
+
+  // ── Estadísticas ───────────────────────────
+  const stats = useMemo(() => ({
+    total:     prestamos.length,
+    activos:   prestamos.filter((p) => p.estado === "activo").length,
+    devueltos: prestamos.filter((p) => p.estado === "devuelto").length,
+    // Artículo más prestado
+    masUsado: (() => {
+      const conteo = {};
+      prestamos.forEach((p) => {
+        const nombre = p.articulo?.nombre;
+        if (nombre) conteo[nombre] = (conteo[nombre] || 0) + 1;
+      });
+      const top = Object.entries(conteo).sort((a, b) => b[1] - a[1])[0];
+      return top ? `${top[0]} (${top[1]}x)` : "—";
+    })(),
+  }), [prestamos]);
+
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+
+      {/* ENCABEZADO */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1D3557]">Préstamos</h1>
-          <p className="text-sm text-slate-500 font-medium">Sección: Gestión de préstamos</p>
+          <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">
+            <History size={26} /> Historial de Préstamos
+          </h2>
+          <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">
+            {isAdmin ? "Vista completa del sistema" : "Tus préstamos"}
+          </p>
         </div>
 
-        <div className="flex gap-2 bg-gray-300/50 p-1 rounded-lg relative">
-          {['activos', 'historial'].map((tab) => (
-            <button 
-              key={tab}
-              onClick={() => setTabActiva(tab)}
-              className={`relative px-4 py-2 rounded-md font-semibold transition-colors z-10 ${tabActiva === tab ? 'text-white' : 'text-slate-600'}`}
-            >
-              {tab === 'activos' ? 'Préstamos activos' : 'Historial de préstamos'}
-              {tabActiva === tab && (
-                <m.div 
-                  layoutId="bubble"
-                  className="absolute inset-0 bg-[#1D3557] rounded-md shadow-md -z-10"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
-              )}
-            </button>
+        {/* Exportar CSV — solo admins */}
+        {isAdmin && prestamosFiltrados.length > 0 && (
+          <button
+            onClick={() => exportarCSV(prestamosFiltrados)}
+            className="flex items-center gap-2 border-2 border-[#002B49] text-[#002B49] px-5 py-2.5
+                       font-bold text-xs uppercase rounded-lg hover:bg-[#002B49] hover:text-white
+                       transition-colors"
+          >
+            <Download size={14} /> Exportar CSV
+          </button>
+        )}
+      </div>
+
+      {/* ESTADÍSTICAS */}
+      {!loading && !error && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <StatCard label="Total préstamos"  value={stats.total}     icon={History}      color="text-blue-900 border-blue-100"    />
+          <StatCard label="En préstamo"      value={stats.activos}   icon={Clock}        color="text-yellow-700 border-yellow-100" />
+          <StatCard label="Devueltos"        value={stats.devueltos} icon={RotateCcw}    color="text-emerald-700 border-emerald-100" />
+          <StatCard label="Más prestado"     value={stats.masUsado}  icon={TrendingUp}   color="text-purple-700 border-purple-100" />
+        </div>
+      )}
+
+      {/* BARRA DE FILTROS */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex flex-col sm:flex-row gap-3">
+
+        {/* Buscador */}
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-3 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar artículo, usuario, email..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-200 rounded-lg
+                       text-sm focus:border-[#002B49] outline-none transition-colors"
+          />
+        </div>
+
+        {/* Filtro estado */}
+        <div className="flex items-center gap-2">
+          <Filter size={14} className="text-gray-400" />
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value)}
+            className="border-2 border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                       focus:border-[#002B49] outline-none"
+          >
+            <option value="todos">Todos los estados</option>
+            <option value="activo">En préstamo</option>
+            <option value="devuelto">Devueltos</option>
+          </select>
+        </div>
+
+        {/* Filtro período */}
+        <div className="flex items-center gap-2">
+          <Calendar size={14} className="text-gray-400" />
+          <select
+            value={filtroPeriodo}
+            onChange={(e) => setFiltroPeriodo(e.target.value)}
+            className="border-2 border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                       focus:border-[#002B49] outline-none"
+          >
+            <option value="todo">Todo el tiempo</option>
+            <option value="hoy">Hoy</option>
+            <option value="semana">Últimos 7 días</option>
+            <option value="mes">Este mes</option>
+          </select>
+        </div>
+      </div>
+
+      {/* RESULTADO DEL FILTRO */}
+      <p className="text-xs text-gray-500 mb-3 px-1">
+        Mostrando <strong>{prestamosFiltrados.length}</strong> de{" "}
+        <strong>{prestamos.length}</strong> registros
+      </p>
+
+      {/* TABLA */}
+      {loading ? (
+        <div className="space-y-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-14 bg-gray-200 rounded-lg animate-pulse" />
           ))}
         </div>
-      </m.div>
-
-      {/* CONTENIDO DINÁMICO CON ANIMATE PRESENCE */}
-      <AnimatePresence mode="wait">
-        <m.div
-          key={tabActiva}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
-        >
-          {tabActiva === 'activos' ? (
-            <div key="activos">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-[#1D3557]">Préstamos activos</h2>
-              </div>
-
-              <m.div 
-                variants={containerVariants}
-                initial="hidden"
-                animate="show"
-                className="grid grid-cols-1 md:grid-cols-2 gap-6"
-              >
-                {prestamosActivos.map((p) => (
-                  <m.div 
-                    key={p.id} 
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02 }}
-                    className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100"
-                  >
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-gray-400 font-bold text-sm">{p.id}</span>
-                      <span className={`px-4 py-1 rounded-full text-xs font-bold ${p.color}`}>{p.estado}</span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-800">{p.equipo}</h3>
-                        <p className="text-gray-500 text-sm mb-4">Solicitado por: <span className="font-semibold text-slate-700">{p.usuario}</span></p>
-                      </div>
-                      <m.button 
-                        whileTap={{ scale: 0.9 }}
-                        className="bg-[#004B7A] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#003A5F]"
-                      >
-                        Registrar devolución
-                      </m.button>
-                    </div>
-                    <div className="text-sm text-gray-500 space-y-1">
-                      <p>Desde: <span className="font-medium text-slate-700">{p.desde}</span></p>
-                      <p>Vence: <span className="font-medium text-slate-700">{p.vence}</span></p>
-                    </div>
-                  </m.div>
-                ))}
-              </m.div>
-            </div>
-          ) : (
-            <div key="historial">
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-[#1D3557]">Historial de préstamos</h2>
-              </div>
-
-              <m.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200"
-              >
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-[#7f93ab] text-white font-semibold">
-                    <tr>
-                      <th className="p-4">ID</th>
-                      <th className="p-4">Recurso</th>
-                      <th className="p-4">Usuario</th>
-                      <th className="p-4">Condición</th>
-                    </tr>
-                  </thead>
-                  <m.tbody 
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="show"
-                    className="divide-y divide-gray-100 text-slate-700"
-                  >
-                    {historial.map((item) => (
-                      <m.tr 
-                        key={item.id} 
-                        variants={itemVariants}
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="p-4 text-gray-500">{item.id}</td>
-                        <td className="p-4 font-bold">{item.recurso}</td>
-                        <td className="p-4">{item.usuario}</td>
-                        <td className="p-4">{item.condicion}</td>
-                      </m.tr>
-                    ))}
-                  </m.tbody>
-                </table>
-              </m.div>
-            </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm font-bold">
+          {error}
+        </div>
+      ) : prestamosFiltrados.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-300 rounded-xl bg-white">
+          <History size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500 font-bold">
+            {busqueda || filtroEstado !== "todos" || filtroPeriodo !== "todo"
+              ? "Sin resultados para los filtros aplicados."
+              : "Aún no hay préstamos registrados."}
+          </p>
+          {(busqueda || filtroEstado !== "todos" || filtroPeriodo !== "todo") && (
+            <button
+              onClick={() => { setBusqueda(""); setFiltroEstado("todos"); setFiltroPeriodo("todo"); }}
+              className="mt-3 text-xs font-bold text-[#002B49] underline"
+            >
+              Limpiar filtros
+            </button>
           )}
-        </m.div>
-      </AnimatePresence>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[#002B49] text-white text-xs uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left font-bold">Artículo</th>
+                  <th className="px-4 py-3 text-left font-bold">Usuario</th>
+                  <th className="px-4 py-3 text-left font-bold">Estado</th>
+                  <th className="px-4 py-3 text-left font-bold">Prestado</th>
+                  <th className="px-4 py-3 text-left font-bold">Devuelto</th>
+                  <th className="px-4 py-3 text-left font-bold">Duración</th>
+                  <th className="px-4 py-3 text-left font-bold">Notas</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {prestamosFiltrados.map((p, i) => (
+                    <FilaPrestamo key={p.id} prestamo={p} index={i} />
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

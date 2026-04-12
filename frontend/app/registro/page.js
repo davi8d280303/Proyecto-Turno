@@ -3,19 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react"; 
 import Link from "next/link";
+import { registrarUsuario } from "@/lib/api";
 
 export default function RegistroPage() {
   const router = useRouter();
   const nombreRef = useRef(null);
-  
-  // ESTADOS PARA CONTROLAR LA MAGIA
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (nombreRef.current) {
-      nombreRef.current.focus();
-    }
+    if (nombreRef.current) nombreRef.current.focus();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -24,19 +21,27 @@ export default function RegistroPage() {
     setIsLoading(true);
 
     const formData = new FormData(e.target);
+    const full_name = formData.get("nombre");
+    const email = formData.get("email");
     const password = formData.get("password");
     const confirmPassword = formData.get("confirmPassword");
 
-    // VALIDACIÓN PARA ACTIVAR LA SACUDIDA (SHAKE)
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden");
       setIsLoading(false);
       return;
     }
 
-    // Simulación de envío
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    router.push("/panel");
+    const result = await registrarUsuario(full_name, email, password);
+
+    if (!result.success) {
+      setError(result.error || "Error al registrarse");
+      setIsLoading(false);
+      return;
+    }
+
+    // Registro exitoso → ir al login
+    router.push("/?registered=true");
   };
 
   return (

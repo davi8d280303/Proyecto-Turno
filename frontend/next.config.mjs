@@ -2,23 +2,31 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname  = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // ── output standalone ────────────────────────────────────────────
+  // Genera .next/standalone — una carpeta autocontenida con solo
+  // lo necesario para producción. Reduce la imagen Docker de ~500MB
+  // a ~80MB porque no copia node_modules completos al contenedor.
+  output: 'standalone',
+
+  // ── Turbopack (solo dev) ──────────────────────────────────────────
   turbopack: {
     root: path.join(__dirname),
   },
-  
-  // 🚀 ESTO ES LO QUE FALTA PARA EL DEPLOY
+
+  // ── Proxy al backend ──────────────────────────────────────────────
+  // En desarrollo y producción, /api/* se reenvía al backend.
+  // En Docker, el backend corre en su propio contenedor.
   async rewrites() {
     return [
       {
-        // Cuando el front pida algo a /api/..., lo enviará al backend
-        source: '/api/:path*',
+        source:      '/api/:path*',
         destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/:path*`,
       },
-    ]
+    ];
   },
 };
 
