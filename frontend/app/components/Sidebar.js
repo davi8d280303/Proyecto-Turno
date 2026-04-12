@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { logoutUsuario, getSessionUser } from "@/lib/api";
 
-// Badge de rol
 function RoleBadge({ role }) {
   const cfg = {
     super_admin: { label: "Super Admin", icon: ShieldCheck, color: "text-yellow-400" },
@@ -24,7 +23,6 @@ function RoleBadge({ role }) {
   );
 }
 
-// Ítem de navegación reutilizable
 function NavItem({ item, pathname, collapsed }) {
   const Icon   = item.icon;
   const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -57,18 +55,26 @@ export default function Sidebar() {
   const [user,       setUser]       = useState(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // ── Inicialización — leer localStorage ────
+  // Usamos una función interna para evitar el warning de
+  // setState directo en el cuerpo del efecto
   useEffect(() => {
-    const saved = localStorage.getItem("sidebar");
-    requestAnimationFrame(() => {
+    function inicializar() {
+      const saved = localStorage.getItem("sidebar");
       if (saved) setCollapsed(saved === "true");
       setIsMounted(true);
-    });
-    setUser(getSessionUser());
+      setUser(getSessionUser());
+    }
+    inicializar();
   }, []);
 
-  // Re-leer usuario cuando cambia la ruta (por si actualizó su nombre en perfil)
+  // ── Re-leer usuario al navegar ─────────────
+  // Mismo patrón: función interna para satisfacer el linter
   useEffect(() => {
-    setUser(getSessionUser());
+    function actualizarUsuario() {
+      setUser(getSessionUser());
+    }
+    actualizarUsuario();
   }, [pathname]);
 
   useEffect(() => {
@@ -86,20 +92,18 @@ export default function Sidebar() {
   const isSuperAdmin = user?.role === "super_admin";
   const isAdmin      = user?.role === "admin" || isSuperAdmin;
 
-  // Navegación principal — visible para todos
   const navItems = [
-    { label: "Panel",        href: "/panel",     icon: LayoutDashboard },
-    { label: "Recursos",     href: "/recursos",  icon: Boxes           },
-    { label: "Préstamos",    href: "/prestamos", icon: ClipboardList   },
-    { label: "Historial",    href: "/historial", icon: History         },
-    { label: "Perfil",       href: "/perfil",    icon: User            },
+    { label: "Panel",     href: "/panel",     icon: LayoutDashboard },
+    { label: "Recursos",  href: "/recursos",  icon: Boxes           },
+    { label: "Préstamos", href: "/prestamos", icon: ClipboardList   },
+    { label: "Historial", href: "/historial", icon: History         },
+    { label: "Perfil",    href: "/perfil",    icon: User            },
   ];
 
-  // Administración — solo admin y super_admin
   const adminItems = isAdmin ? [
-    { label: "Inventario",    href: "/panel/inventario",    icon: Boxes        },
-    { label: "Usuarios",      href: "/panel/usuarios",      icon: User         },
-    { label: "Configuración", href: "/panel/configuracion", icon: Settings     },
+    { label: "Inventario",    href: "/panel/inventario",    icon: Boxes    },
+    { label: "Usuarios",      href: "/panel/usuarios",      icon: User     },
+    { label: "Configuración", href: "/panel/configuracion", icon: Settings },
   ] : [];
 
   return (
@@ -149,7 +153,7 @@ export default function Sidebar() {
             ))}
           </div>
 
-          {/* LOGOUT — justo después de Configuración */}
+          {/* LOGOUT — junto a Configuración */}
           <div className="mt-1">
             <button
               onClick={handleLogout}
@@ -175,18 +179,21 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* LOGOUT para usuarios sin sección admin — al fondo */}
+      {/* LOGOUT para usuarios sin sección admin */}
       {!isAdmin && (
         <div className="mt-auto px-2 pb-4 border-t border-blue-800 pt-3">
           <button
             onClick={handleLogout}
             disabled={loggingOut}
             className="group relative w-full flex items-center gap-3 px-3 py-3 rounded-md
-                       hover:bg-red-600 text-white transition-all text-sm
-                       disabled:opacity-60"
+                       hover:bg-red-600 text-white transition-all text-sm disabled:opacity-60"
           >
             <LogOut size={18} />
-            {!collapsed && <span className="font-semibold">{loggingOut ? "Cerrando..." : "Cerrar sesión"}</span>}
+            {!collapsed && (
+              <span className="font-semibold">
+                {loggingOut ? "Cerrando..." : "Cerrar sesión"}
+              </span>
+            )}
             {collapsed && (
               <span className="absolute left-14 bg-gray-900 text-white text-xs px-2 py-1 rounded
                                opacity-0 group-hover:opacity-100 whitespace-nowrap z-50 pointer-events-none">

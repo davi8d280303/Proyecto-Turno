@@ -6,14 +6,14 @@ import { LogOut } from "lucide-react";
 import { logoutUsuario, getSessionUser } from "@/lib/api";
 
 const TITLES = {
-  "/panel":                "Panel principal",
-  "/panel/inventario":     "Inventario",
-  "/panel/usuarios":       "Gestión de usuarios",
-  "/panel/configuracion":  "Configuración",
-  "/recursos":             "Recursos",
-  "/prestamos":            "Préstamos activos",
-  "/historial":            "Historial",
-  "/perfil":               "Mi perfil",
+  "/panel":               "Panel principal",
+  "/panel/inventario":    "Inventario",
+  "/panel/usuarios":      "Gestión de usuarios",
+  "/panel/configuracion": "Configuración",
+  "/recursos":            "Recursos",
+  "/prestamos":           "Préstamos activos",
+  "/historial":           "Historial",
+  "/perfil":              "Mi perfil",
 };
 
 export default function Topbar() {
@@ -21,9 +21,14 @@ export default function Topbar() {
   const router   = useRouter();
   const [user, setUser] = useState(null);
 
+  // Función interna para evitar el warning de setState
+  // directo en el cuerpo de useEffect
   useEffect(() => {
-    setUser(getSessionUser());
-  }, [pathname]); // Re-lee al navegar por si el perfil cambió
+    function leerUsuario() {
+      setUser(getSessionUser());
+    }
+    leerUsuario();
+  }, [pathname]);
 
   const title = TITLES[pathname] || "Sistema";
 

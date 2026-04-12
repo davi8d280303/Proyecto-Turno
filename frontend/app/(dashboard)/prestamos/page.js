@@ -280,7 +280,7 @@ function TarjetaPrestamo({ prestamo, isAdmin, onDevolver }) {
         {/* Notas */}
         {prestamo.notas && (
           <p className="text-xs text-gray-500 italic border-t pt-3 mb-4">
-            "{prestamo.notas}"
+            &ldquo;{prestamo.notas}&rdquo;
           </p>
         )}
 

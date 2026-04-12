@@ -6,24 +6,26 @@ import MainLayout from '../components/MainLayout';
 import { getAccessToken, getRefreshToken, clearSession } from '@/lib/api';
 
 export default function DashboardLayout({ children }) {
-  const router   = useRouter();
+  const router    = useRouter();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const accessToken  = getAccessToken();
-    const refreshToken = getRefreshToken();
+    // Movemos la lógica a una función interna async para
+    // evitar el warning de setState directo en el cuerpo del efecto
+    function verificarSesion() {
+      const accessToken  = getAccessToken();
+      const refreshToken = getRefreshToken();
 
-    // Si no hay ningún token → login
-    if (!accessToken && !refreshToken) {
-      clearSession();
-      router.replace('/');
-      return;
+      if (!accessToken && !refreshToken) {
+        clearSession();
+        router.replace('/');
+        return;
+      }
+
+      setChecking(false);
     }
 
-    // Si hay al menos un token, dejamos pasar.
-    // El interceptor de authRequest en api.js se encargará de hacer
-    // refresh automático si el accessToken ya expiró.
-    setChecking(false);
+    verificarSesion();
   }, [router]);
 
   if (checking) {

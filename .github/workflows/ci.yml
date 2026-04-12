@@ -2,68 +2,113 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [CI-CD, main, reestructuracion] # Añadí tu rama nueva para que puedas probarlo
+    branches: [CI-CD, main, reestructuracion, propuesta-final]
   pull_request:
-    branches: [CI-CD, main]
+    branches: [CI-CD, main, propuesta-final]
 
 jobs:
+  # ────────────────────────────────────────────────────────────
+  # JOB 1 — Lint + Build de Next.js
+  # Corre en TODOS los push y PRs para detectar errores pronto
+  # ────────────────────────────────────────────────────────────
   test-and-build:
+    name: Lint y Build
     runs-on: ubuntu-latest
-    # Esto le dice a GitHub que ejecute todo lo de abajo dentro de la carpeta frontend
+
     defaults:
       run:
         working-directory: ./frontend
-    
-    steps:
-    - name: Checkout código
-      uses: actions/checkout@v4
-    
-    - name: Configurar Node.js 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: './frontend/package-lock.json' # Importante para el cache
-    
-    - name: Instalar dependencias
-      run: npm ci
-    
-    - name: Linting (ESLint)
-      run: npm run lint
-    
-    - name: Build de Next.js
-      run: npm run build
-    
-    - name: Verificar build (BUILD_ID)
-      run: |
-        echo "=== Verificación del build ==="
-        if [ -f ".next/BUILD_ID" ]; then
-          BUILD_ID=$(cat .next/BUILD_ID)
-          echo "Build EXITOSO"
-          echo "Build ID: $BUILD_ID"
-        else
-          echo "ERROR: Build falló - no hay BUILD_ID"
-          ls -la .next/
-          exit 1
-        fi
 
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Linting (ESLint)
+        run: npm run lint
+
+      - name: Build de Next.js
+        # NEXT_PUBLIC_API_URL se define aquí con un valor seguro para el build.
+        # En producción real este valor se inyecta como variable del contenedor,
+        # no en el build — pero Next.js lo necesita en tiempo de compilación
+        # para las variables NEXT_PUBLIC_*.
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api' }}
+        run: npm run build
+
+      - name: Verificar build exitoso
+        run: |
+          echo "=== Verificación del build ==="
+          if [ -f ".next/BUILD_ID" ]; then
+            echo "✅ Build EXITOSO"
+            echo "   Build ID: $(cat .next/BUILD_ID)"
+          else
+            echo "❌ ERROR: Build falló - no se encontró BUILD_ID"
+            ls -la .next/ 2>/dev/null || echo "El directorio .next no existe"
+            exit 1
+          fi
+
+  # ────────────────────────────────────────────────────────────
+  # JOB 2 — Build de imagen Docker
+  # Solo corre cuando el lint+build pasan Y estamos en las ramas
+  # principales (no en cada PR de feature)
+  #
+  # NOTA sobre la condición:
+  # - github.event_name == 'push' filtra solo pushes directos,
+  #   no PRs (donde github.ref apunta al branch base, no al tuyo)
+  # - contains(...) permite añadir más ramas fácilmente
+  # ────────────────────────────────────────────────────────────
   docker-build:
+    name: Build Docker
     needs: test-and-build
     runs-on: ubuntu-latest
-    # Ajusta esta condición si cambias de rama definitiva
-    if: github.ref == 'refs/heads/CI-CD' || github.ref == 'refs/heads/reestructuracion'
-    
+
+    if: |
+      github.event_name == 'push' &&
+      (
+        github.ref == 'refs/heads/CI-CD'        ||
+        github.ref == 'refs/heads/main'         ||
+        github.ref == 'refs/heads/reestructuracion'
+      )
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    
-    - name: Build Docker image
-      run: |
-        echo "Construyendo imagen Docker..."
-        # Le decimos a Docker que el contexto y el Dockerfile están en ./frontend
-        docker build -t inventario-front ./frontend
-        echo "Docker image construida exitosamente"
-    
-    - name: Reporte final
-      run: |
-        echo "PIPELINE CI/CD COMPLETADO EXITOSAMENTE"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        # Buildx permite builds más rápidos con caché y soporte multi-plataforma
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build imagen Docker
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          # push: false → solo construye, no sube a ningún registry todavía
+          # Cuando quieras publicar en Docker Hub o GHCR, cambia a true
+          # y agrega el paso de login correspondiente
+          push: false
+          tags: inventario-front:${{ github.sha }}
+          # Cache entre runs para que el build sea más rápido
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api' }}
+
+      - name: Reporte final
+        run: |
+          echo "================================================"
+          echo "✅ PIPELINE CI/CD COMPLETADO EXITOSAMENTE"
+          echo "   Rama:     ${{ github.ref_name }}"
+          echo "   Commit:   ${{ github.sha }}"
+          echo "   Imagen:   inventario-front:${{ github.sha }}"
+          echo "================================================"
