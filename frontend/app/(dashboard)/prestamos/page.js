@@ -1,318 +1,518 @@
-'use client';
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  ClipboardList, Plus, RotateCcw, X,
+  Search, User, Package, Clock, CheckCircle2,
+} from "lucide-react";
+import apiService, { getSessionUser } from "@/lib/api";
 
-import { useEffect, useState } from 'react';
-import { getPrestamos } from '@/lib/api';
-import Loader, { SkeletonCard } from '@/app/components/Loader';
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+function formatFecha(dateStr) {
+  if (!dateStr) return "—";
+  return new Intl.DateTimeFormat("es-MX", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(dateStr));
+}
 
-export default function PrestamosPage() {
-  const [prestamos, setPrestamos] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filtro, setFiltro] = useState('');
+function EstadoBadge({ estado }) {
+  if (estado === "activo") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase
+                       bg-yellow-50 text-yellow-700 border border-yellow-200 px-2 py-0.5 rounded">
+        <Clock size={10} /> En préstamo
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase
+                     bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">
+      <CheckCircle2 size={10} /> Devuelto
+    </span>
+  );
+}
 
-  // Cargar préstamos al montar el componente (asincronía)
+// ─────────────────────────────────────────────
+// MODAL: REGISTRAR PRÉSTAMO
+// ─────────────────────────────────────────────
+function ModalNuevoPrestamo({ onClose, onRegistrado }) {
+  const [inventario, setInventario] = useState([]);
+  const [usuarios,   setUsuarios]   = useState([]);
+  const [form,       setForm]       = useState({ inventario_id: "", usuario_id: "", notas: "" });
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState(null);
+  const [cargando,   setCargando]   = useState(true);
+
   useEffect(() => {
-    const cargarPrestamos = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Consumir API del backend
-        const resultado = await getPrestamos();
-
-        if (!resultado.success) {
-          // Si falla, usar datos de demostración
-          console.warn('No se pudo cargar desde API:', resultado.error);
-          setPrestamos(DATOS_DEMO);
-        } else {
-          setPrestamos(resultado.data || DATOS_DEMO);
-        }
-      } catch (err) {
-        console.error('Error cargando préstamos:', err);
-        setError(
-          'No se pudieron cargar los préstamos. Mostrando demostración.'
-        );
-        setPrestamos(DATOS_DEMO);
-      } finally {
-        setIsLoading(false);
-      }
+    const cargar = async () => {
+      const [resInv, resUsr] = await Promise.all([
+        apiService.getInventario(),
+        apiService.getUsuarios(),
+      ]);
+      // Solo mostrar artículos disponibles
+      if (resInv.success) setInventario(resInv.data.filter((i) => i.estado === "disponible"));
+      if (resUsr.success) setUsuarios(resUsr.data);
+      setCargando(false);
     };
-
-    cargarPrestamos();
+    cargar();
   }, []);
 
-  // Filtrar préstamos según búsqueda (no asincrónico, solo filtrado)
-  const prestamosFiltrados = prestamos.filter(
-    (item) =>
-      (item.equipo || item.equipment || '').toLowerCase().includes(filtro.toLowerCase()) ||
-      (item.ubicacion || item.location || '').toLowerCase().includes(filtro.toLowerCase())
-  );
-
-  // Manejar cambio de filtro
-  const handleFiltroChange = (e) => {
-    setFiltro(e.target.value);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiService.crearPrestamo({
+        inventario_id: form.inventario_id,
+        usuario_id:    form.usuario_id,
+        notas:         form.notas || null,
+      });
+      if (res.success) {
+        onRegistrado(res.data, res.message);
+      } else {
+        setError(res.error || "Error al registrar el préstamo.");
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
-      {/* Barra de navegación superior (Header) */}
-      <header className="bg-[#002B49] text-white p-4 flex justify-between items-center shadow-md">
-        <div className="flex items-center gap-2">
-          <div className="border border-white p-1 rounded">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-              <line x1="16" x2="16" y1="2" y2="6" />
-              <line x1="8" x2="8" y1="2" y2="6" />
-              <line x1="3" x2="21" y1="10" y2="10" />
-            </svg>
-          </div>
-          <span className="font-bold">Mis Préstamos</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          </svg>
-          <div className="bg-gray-400 rounded p-1">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-[#002B49]"
-            >
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-        </div>
-      </header>
-
-      {/* Cuerpo de la página */}
-      <main className="max-w-4xl mx-auto mt-8 px-4">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Mis Préstamos</h2>
-
-        {/* Mostrar error si existe */}
-        {error && (
-          <div
-            className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl text-yellow-800 text-sm"
-            role="alert"
-            aria-live="polite"
-          >
-            <p className="font-semibold">Aviso:</p>
-            <p className="mt-1">{error}</p>
-          </div>
-        )}
-
-        {/* Buscador */}
-        <div className="relative mb-6">
-          <input
-            type="text"
-            placeholder="Buscar equipo o ubicación..."
-            value={filtro}
-            onChange={handleFiltroChange}
-            disabled={isLoading}
-            className="w-full pl-4 pr-4 py-2 border border-gray-300 rounded-md 
-                       focus:outline-none focus:ring-1 focus:ring-blue-500
-                       disabled:opacity-60 disabled:cursor-not-allowed"
-            aria-label="Buscar préstamos"
-          />
-        </div>
-
-        {/* Estado de carga */}
-        {isLoading ? (
-          <SkeletonCard count={3} />
-        ) : prestamosFiltrados.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">
-              {filtro
-                ? 'No se encontraron préstamos que coincidan con tu búsqueda'
-                : 'No hay préstamos para mostrar'}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white w-full max-w-md rounded-xl shadow-2xl border-t-4 border-[#002B49]"
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b">
+          <div>
+            <h3 className="font-black text-[#002B49] text-lg uppercase tracking-tight">
+              Nuevo Préstamo
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Solo artículos disponibles están en la lista
             </p>
           </div>
-        ) : (
-          <>
-            {/* Lista de Tarjetas */}
-            <div className="space-y-4" role="list" aria-label="Lista de préstamos">
-              {prestamosFiltrados.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-                  role="listitem"
-                >
-                  {/* Cabecera de la tarjeta */}
-                  <div className="bg-[#AAB8C2] p-4 flex justify-between items-center text-white">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-10 bg-gray-300 rounded flex items-center justify-center">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="text-gray-500"
-                        >
-                          <rect width="18" height="12" x="3" y="4" rx="2" ry="2" />
-                          <line x1="3" x2="21" y1="16" y2="16" />
-                          <line x1="9" x2="15" y1="16" y2="16" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-lg leading-tight">
-                          {item.equipo || item.equipment || 'No especificado'}
-                        </h3>
-                        <p className="text-sm opacity-90">
-                          {item.ubicacion || item.location || 'Ubicación desconocida'}
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`${item.colorEstado || 'bg-[#002B49]'} text-xs px-3 py-1 rounded-full flex items-center gap-2`}
-                    >
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
-                      {item.estado || item.status || 'Desconocido'}
-                    </span>
-                  </div>
-
-                  {/* Info inferior de la tarjeta */}
-                  <div className="p-4 grid grid-cols-2 text-sm text-gray-600">
-                    <div className="border-r border-gray-200 flex items-center gap-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-400"
-                      >
-                        <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                        <line x1="16" x2="16" y1="2" y2="6" />
-                        <line x1="8" x2="8" y1="2" y2="6" />
-                        <line x1="3" x2="21" y1="10" y2="10" />
-                      </svg>
-                      <span>
-                        Prestado el{' '}
-                        <span className="font-semibold">
-                          {item.fecha || item.date || 'N/A'}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="pl-4 flex items-center gap-2">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-gray-400"
-                      >
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <polyline points="16 11 18 13 22 9" />
-                      </svg>
-                      <span>
-                        Autorizado por:{' '}
-                        <span className="font-semibold">
-                          {item.autorizado || item.authorizedBy || 'N/A'}
-                        </span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Información de resultados */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-gray-600">
-              <p>
-                Mostrando <strong>{prestamosFiltrados.length}</strong> de{' '}
-                <strong>{prestamos.length}</strong> préstamos
-              </p>
-            </div>
-          </>
-        )}
-
-        {/* Botón Solicitar */}
-        <div className="mt-8 flex justify-center">
-          <button
-            className="bg-[#002B49] text-white px-10 py-3 rounded-md font-bold 
-                       hover:bg-opacity-90 transition-all 
-                       disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={isLoading}
-            aria-label="Solicitar nuevo préstamo"
-          >
-            {isLoading ? 'Cargando...' : 'Solicitar nuevo préstamo'}
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
+            <X size={20} />
           </button>
         </div>
-      </main>
+
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          {cargando ? (
+            <div className="py-8 text-center text-sm text-gray-400 animate-pulse">
+              Cargando artículos y usuarios...
+            </div>
+          ) : (
+            <>
+              {/* Artículo */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Artículo a prestar *
+                </label>
+                {inventario.length === 0 ? (
+                  <p className="text-xs text-red-500 font-bold p-3 bg-red-50 rounded-lg">
+                    No hay artículos disponibles en este momento.
+                  </p>
+                ) : (
+                  <select
+                    value={form.inventario_id}
+                    onChange={(e) => setForm({ ...form, inventario_id: e.target.value })}
+                    required
+                    className="w-full border-2 border-gray-200 rounded-lg px-3 py-2.5
+                               text-sm focus:border-[#002B49] outline-none"
+                  >
+                    <option value="">Selecciona un artículo...</option>
+                    {inventario.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.nombre} {item.categoria ? `· ${item.categoria}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Usuario receptor */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Quién lo recibe *
+                </label>
+                <select
+                  value={form.usuario_id}
+                  onChange={(e) => setForm({ ...form, usuario_id: e.target.value })}
+                  required
+                  className="w-full border-2 border-gray-200 rounded-lg px-3 py-2.5
+                             text-sm focus:border-[#002B49] outline-none"
+                >
+                  <option value="">Selecciona un usuario...</option>
+                  {usuarios.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} — {u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">
+                  Notas (opcional)
+                </label>
+                <textarea
+                  value={form.notas}
+                  onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                  placeholder="Ej. Devolver el viernes, aula 204..."
+                  rows={2}
+                  className="w-full border-2 border-gray-200 rounded-lg px-3 py-2
+                             text-sm focus:border-[#002B49] outline-none resize-none"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 font-bold
+                         text-xs uppercase rounded-lg hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving || cargando || inventario.length === 0}
+              className="flex-1 py-2.5 bg-[#002B49] text-white font-bold text-xs uppercase
+                         rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Registrando..." : "Registrar préstamo"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 }
 
-// Datos de demostración si la API falla
-const DATOS_DEMO = [
-  {
-    id: 1,
-    equipo: 'Proyector Epson',
-    ubicacion: 'Laboratorio 2',
-    estado: 'En uso',
-    colorEstado: 'bg-[#002B49]',
-    fecha: '24 abril 2024',
-    autorizado: 'Juan Pérez',
-  },
-  {
-    id: 2,
-    equipo: 'Laptop Lenovo',
-    ubicacion: 'Sala de Juntas',
-    estado: 'Retrasado',
-    colorEstado: 'bg-[#7F1D1D]',
-    fecha: '22 abril 2024',
-    autorizado: 'María Gómez',
-  },
-  {
-    id: 3,
-    equipo: 'Micrófonos Inalámbricos',
-    ubicacion: 'Auditorio',
-    estado: 'Disponible',
-    colorEstado: 'bg-[#065F46]',
-    fecha: '20 abril 2024',
-    autorizado: 'José Martínez',
-  },
-];
+// ─────────────────────────────────────────────
+// TARJETA DE PRÉSTAMO
+// ─────────────────────────────────────────────
+function TarjetaPrestamo({ prestamo, isAdmin, onDevolver }) {
+  const [devolviendo, setDevolviendo] = useState(false);
+
+  const handleDevolver = async () => {
+    if (!confirm(`¿Confirmas la devolución de "${prestamo.articulo?.nombre}"?`)) return;
+    setDevolviendo(true);
+    await onDevolver(prestamo.id);
+    setDevolviendo(false);
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      className={`bg-white rounded-xl border-2 shadow-sm overflow-hidden transition-colors ${
+        prestamo.estado === "activo"
+          ? "border-yellow-200 hover:border-yellow-400"
+          : "border-gray-100 opacity-70"
+      }`}
+    >
+      {/* Franja de color según estado */}
+      <div className={`h-1.5 w-full ${prestamo.estado === "activo" ? "bg-yellow-400" : "bg-emerald-400"}`} />
+
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          {/* Artículo */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#002B49]/10 flex items-center justify-center flex-shrink-0">
+              <Package size={18} className="text-[#002B49]" />
+            </div>
+            <div>
+              <p className="font-black text-gray-800 text-base leading-tight">
+                {prestamo.articulo?.nombre || "Artículo eliminado"}
+              </p>
+              {prestamo.articulo?.categoria && (
+                <p className="text-xs text-gray-400">{prestamo.articulo.categoria}</p>
+              )}
+            </div>
+          </div>
+          <EstadoBadge estado={prestamo.estado} />
+        </div>
+
+        {/* Quién lo tiene */}
+        <div className="flex items-center gap-2 mb-3 p-3 bg-gray-50 rounded-lg">
+          <User size={14} className="text-gray-400 flex-shrink-0" />
+          <div>
+            <p className="text-xs text-gray-500">En manos de</p>
+            <p className="text-sm font-bold text-gray-800">
+              {prestamo.usuario?.full_name || "—"}
+            </p>
+            <p className="text-[10px] text-gray-400">{prestamo.usuario?.email}</p>
+          </div>
+        </div>
+
+        {/* Fechas */}
+        <div className="grid grid-cols-2 gap-3 text-xs text-gray-500 mb-4">
+          <div>
+            <p className="font-bold uppercase text-[10px] tracking-wide text-gray-400">Prestado</p>
+            <p>{formatFecha(prestamo.prestado_en)}</p>
+          </div>
+          {prestamo.devuelto_en && (
+            <div>
+              <p className="font-bold uppercase text-[10px] tracking-wide text-gray-400">Devuelto</p>
+              <p>{formatFecha(prestamo.devuelto_en)}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Notas */}
+        {prestamo.notas && (
+          <p className="text-xs text-gray-500 italic border-t pt-3 mb-4">
+            "{prestamo.notas}"
+          </p>
+        )}
+
+        {/* Botón devolver — solo si está activo y es admin */}
+        {isAdmin && prestamo.estado === "activo" && (
+          <button
+            onClick={handleDevolver}
+            disabled={devolviendo}
+            className="w-full flex items-center justify-center gap-2 py-2.5
+                       bg-emerald-600 hover:bg-emerald-700 text-white font-bold
+                       text-xs uppercase rounded-lg transition-colors disabled:opacity-60"
+          >
+            <RotateCcw size={13} />
+            {devolviendo ? "Procesando..." : "Registrar devolución"}
+          </button>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PÁGINA PRINCIPAL
+// ─────────────────────────────────────────────
+export default function PrestamosPage() {
+  const [prestamos,    setPrestamos]    = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+  const [busqueda,     setBusqueda]     = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("activo"); // "activo" | "devuelto" | "todos"
+  const [modalAbierto, setModalAbierto] = useState(false);
+  const [toast,        setToast]        = useState(null);
+
+  const user    = getSessionUser();
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
+
+  // ── Mostrar notificación temporal ─────────
+  const mostrarToast = (msg, tipo = "success") => {
+    setToast({ msg, tipo });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // ── Cargar préstamos ───────────────────────
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiService.getPrestamos();
+      if (res.success) setPrestamos(res.data);
+      else setError(res.error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // ── Nuevo préstamo registrado ──────────────
+  const handleRegistrado = (_, mensaje) => {
+    setModalAbierto(false);
+    mostrarToast(mensaje || "Préstamo registrado correctamente.");
+    cargar();
+  };
+
+  // ── Devolución ─────────────────────────────
+  const handleDevolver = async (id) => {
+    const res = await apiService.devolverPrestamo(id);
+    if (res.success) {
+      // Actualizar localmente
+      setPrestamos((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, estado: "devuelto", devuelto_en: new Date().toISOString() }
+            : p
+        )
+      );
+      mostrarToast("Devolución registrada. Artículo disponible nuevamente.");
+    } else {
+      mostrarToast(res.error || "Error al registrar devolución.", "error");
+    }
+  };
+
+  // ── Filtrado ───────────────────────────────
+  const prestamosFiltrados = prestamos
+    .filter((p) => filtroEstado === "todos" || p.estado === filtroEstado)
+    .filter((p) => {
+      const q = busqueda.toLowerCase();
+      return (
+        p.articulo?.nombre?.toLowerCase().includes(q) ||
+        p.usuario?.full_name?.toLowerCase().includes(q) ||
+        p.usuario?.email?.toLowerCase().includes(q)
+      );
+    });
+
+  const activos   = prestamos.filter((p) => p.estado === "activo").length;
+  const devueltos = prestamos.filter((p) => p.estado === "devuelto").length;
+
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+
+      {/* TOAST */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-bold
+              ${toast.tipo === "error"
+                ? "bg-red-600 text-white"
+                : "bg-emerald-600 text-white"
+              }`}
+          >
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ENCABEZADO */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">
+            <ClipboardList size={26} /> Préstamos
+          </h2>
+          <div className="flex gap-4 mt-1 text-xs text-gray-500">
+            <span><strong className="text-yellow-600">{activos}</strong> activos</span>
+            <span><strong className="text-emerald-600">{devueltos}</strong> devueltos</span>
+          </div>
+        </div>
+
+        {isAdmin && (
+          <button
+            onClick={() => setModalAbierto(true)}
+            className="flex items-center gap-2 bg-[#002B49] text-white px-5 py-2.5
+                       font-bold text-xs uppercase rounded-lg hover:bg-slate-800
+                       transition-colors shadow-md"
+          >
+            <Plus size={15} /> Nuevo préstamo
+          </button>
+        )}
+      </div>
+
+      {/* FILTROS */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        {/* Tabs estado */}
+        <div className="flex gap-1 bg-gray-200 p-1 rounded-lg">
+          {[
+            { key: "activo",   label: `Activos (${activos})`     },
+            { key: "devuelto", label: `Devueltos (${devueltos})`  },
+            { key: "todos",    label: "Todos"                     },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setFiltroEstado(key)}
+              className={`px-4 py-2 rounded-md text-xs font-bold uppercase transition-all ${
+                filtroEstado === key
+                  ? "bg-white text-[#002B49] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Buscador */}
+        <div className="relative flex-1">
+          <Search size={15} className="absolute left-3 top-3 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por artículo o usuario..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-200 rounded-lg
+                       text-sm focus:border-[#002B49] outline-none"
+          />
+        </div>
+      </div>
+
+      {/* CONTENIDO */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-52 bg-gray-200 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm font-bold">
+          {error}
+        </div>
+      ) : prestamosFiltrados.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed border-gray-300 rounded-xl bg-white">
+          <ClipboardList size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500 font-bold">
+            {busqueda ? "Sin resultados para esa búsqueda." : "No hay préstamos en esta categoría."}
+          </p>
+          {isAdmin && filtroEstado === "activo" && (
+            <button
+              onClick={() => setModalAbierto(true)}
+              className="mt-4 text-xs font-bold text-[#002B49] underline"
+            >
+              Registrar el primer préstamo
+            </button>
+          )}
+        </div>
+      ) : (
+        <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <AnimatePresence mode="popLayout">
+            {prestamosFiltrados.map((p) => (
+              <TarjetaPrestamo
+                key={p.id}
+                prestamo={p}
+                isAdmin={isAdmin}
+                onDevolver={handleDevolver}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      )}
+
+      {/* MODAL */}
+      <AnimatePresence>
+        {modalAbierto && (
+          <ModalNuevoPrestamo
+            onClose={() => setModalAbierto(false)}
+            onRegistrado={handleRegistrado}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
