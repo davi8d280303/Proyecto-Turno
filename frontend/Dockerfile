@@ -8,7 +8,7 @@
 #   3. runner  → imagen final mínima (~80MB) sin node_modules
 # ─────────────────────────────────────────────────────────────
 
-# Imagen base Alpine — mínima y segura
+# Imagen base Alpine — mínima y segura echo por abraham more
 FROM node:20-alpine AS base
 
 # ── ETAPA 1: Dependencias ─────────────────────────────────────
