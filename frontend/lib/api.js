@@ -183,8 +183,6 @@ async function request(url, options = {}, retry = true) {
         throw new APIError("Sesión expirada. Inicia sesión de nuevo.", 401, null);
       }
     }
-    // ─────────────────────────────────────────────────────────
-
     if (!response.ok) {
       throw new APIError(
         data?.error || data?.message || `Error ${response.status}`,
@@ -398,6 +396,29 @@ export async function crearArea(areaData) {
   }
 }
 
+export async function getTodasLasAreas() {
+  try {
+    const data = await authRequest(`${API_URL}/areas?incluir_inactivas=true`);
+    return { success: true, data: data?.data || [], error: null };
+  } catch (error) {
+    return { success: false, data: [], error: error.message };
+  }
+}
+ 
+// Editar un área existente (nombre, descripción, is_active)
+export async function editarArea(id, updates) {
+  try {
+    if (!id) throw new APIError("ID requerido", 400);
+    const data = await authRequest(`${API_URL}/areas/${id}`, {
+      method: "PATCH",
+      body:   JSON.stringify(updates),
+    });
+    return { success: true, data: data?.data || null, error: null };
+  } catch (error) {
+    return { success: false, data: null, error: error.message };
+  }
+}
+
 // ─────────────────────────────────────────────
 // PRÉSTAMOS
 // ─────────────────────────────────────────────
@@ -502,6 +523,8 @@ const apiService = {
   // Áreas
   getAreas,
   crearArea,
+  getTodasLasAreas,
+  editarArea,
   // Préstamos
   getPrestamos,
   crearPrestamo,

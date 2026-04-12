@@ -12,14 +12,25 @@ const { getSupabaseAdmin } = require('../config/supabaseClient');
 const router = express.Router();
 
 // GET /api/areas — todos los autenticados la necesitan (para selects de área)
+
+// GET /api/areas
 router.get('/', isAuth, async (req, res, next) => {
   try {
-    const db   = getSupabaseAdmin();
+    const db = getSupabaseAdmin();
+    const filters = {};
+
+    // Solo super_admin puede ver las áreas inactivas
+    const incluirInactivas = req.query.incluir_inactivas === 'true' && req.auth.role === 'super_admin';
+    if (!incluirInactivas) {
+      filters.is_active = 'eq.true';
+    }
+
     const data = await db.restSelect('areas', {
       select:  'id,name,description,is_active',
-      filters: { is_active: 'eq.true' },
+      filters,
       order:   'name.asc',
     });
+
     res.json({ success: true, data: data || [] });
   } catch (error) {
     next(error);

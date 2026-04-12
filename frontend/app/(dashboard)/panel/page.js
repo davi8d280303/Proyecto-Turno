@@ -1,53 +1,240 @@
-'use client';
-
-import Link from 'next/link';
+"use client";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
+import Link from "next/link";
+import {
+  Package, ClipboardList, Users, Settings,
+  Clock, CheckCircle2, TrendingUp, Boxes,
+  ArrowRight, ShieldCheck, AlertCircle,
+} from "lucide-react";
+import apiService, { getSessionUser } from "@/lib/api";
 
-export default function PanelPage() {
-  const items = [
-    { title: "Inventario", description: "Gestiona tu inventario", href: "/panel/inventario" },
-    { title: "Préstamos", description: "Administra préstamos", href: "/panel/prestamos" },
-    { title: "Usuarios", description: "Gestiona usuarios", href: "/panel/usuarios" },
-    { title: "Configuración", description: "Configura el sistema", href: "/panel/configuracion" }
-  ];
-
-  const springConfig = { type: "spring", stiffness: 300, damping: 20 };
-
+// ─────────────────────────────────────────────
+// TARJETA DE MÉTRICA
+// ─────────────────────────────────────────────
+function MetricCard({ label, value, icon: Icon, color, loading }) {
   return (
-    <div className="p-6">
-      <motion.div 
-        initial={{ opacity: 0, x: -30 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={springConfig}
-      >
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Panel principal</h1>
-        <div className="w-20 h-1 bg-blue-600 mb-8"></div>
-        <h2 className="text-2xl font-semibold text-gray-700 mb-8">Bienvenido</h2>
-      </motion.div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {items.map((item, index) => (
-          <Link href={item.href} key={item.title}>
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...springConfig, delay: index * 0.1 }}
-              whileHover={{ 
-                scale: 1.05,
-                transition: { type: "spring", stiffness: 400, damping: 15 }
-              }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-white p-6 rounded-lg shadow-md hover:shadow-2xl border border-gray-100 cursor-pointer h-full border-t-4 border-t-blue-500"
-            >
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">{item.title}</h3>
-              <p className="text-gray-600">{item.description}</p>
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <span className="text-blue-600 font-medium">Acceder →</span>
-              </div>
-            </motion.div>
-          </Link>
-        ))}
+    <div className={`bg-white rounded-xl border-2 p-5 flex items-center gap-4 ${color}`}>
+      <div className="w-12 h-12 rounded-xl bg-current/10 flex items-center justify-center flex-shrink-0">
+        <Icon size={22} className="opacity-80" />
       </div>
+      <div>
+        {loading ? (
+          <div className="h-8 w-12 bg-gray-200 rounded animate-pulse mb-1" />
+        ) : (
+          <p className="text-3xl font-black leading-none">{value}</p>
+        )}
+        <p className="text-xs font-bold uppercase tracking-wide opacity-60 mt-1">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// TARJETA DE NAVEGACIÓN
+// ─────────────────────────────────────────────
+function NavCard({ title, description, href, icon: Icon, delay }) {
+  return (
+    <Link href={href}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 20, delay }}
+        whileHover={{ y: -4, transition: { duration: 0.2 } }}
+        whileTap={{ scale: 0.98 }}
+        className="bg-white rounded-xl border-2 border-gray-200 hover:border-[#002B49]
+                   p-6 cursor-pointer shadow-sm hover:shadow-lg transition-shadow
+                   flex flex-col h-full group"
+      >
+        <div className="w-10 h-10 rounded-lg bg-[#002B49]/10 flex items-center justify-center mb-4
+                        group-hover:bg-[#002B49] transition-colors">
+          <Icon size={20} className="text-[#002B49] group-hover:text-white transition-colors" />
+        </div>
+        <h3 className="font-black text-gray-800 text-lg mb-1">{title}</h3>
+        <p className="text-gray-500 text-sm flex-1">{description}</p>
+        <div className="flex items-center gap-1 mt-4 text-[#002B49] font-bold text-xs uppercase
+                        tracking-wide group-hover:gap-2 transition-all">
+          Acceder <ArrowRight size={13} />
+        </div>
+      </motion.div>
+    </Link>
+  );
+}
+
+// ─────────────────────────────────────────────
+// PÁGINA PRINCIPAL
+// ─────────────────────────────────────────────
+export default function PanelPage() {
+  const [stats,   setStats]   = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const user        = getSessionUser();
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin      = user?.role === "admin" || isSuperAdmin;
+  const nombre       = user?.full_name?.split(" ")[0] || "Usuario";
+
+  // Saludo según la hora
+  const saludo = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Buenos días";
+    if (h < 19) return "Buenas tardes";
+    return "Buenas noches";
+  })();
+
+  // ── Cargar métricas del sistema ────────────
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [resInv, resPrestamos, resUsuarios] = await Promise.all([
+        apiService.getInventario(),
+        apiService.getPrestamos(),
+        isAdmin ? apiService.getUsuarios() : Promise.resolve({ success: false, data: [] }),
+      ]);
+
+      const inventario  = resInv.success      ? resInv.data      : [];
+      const prestamos   = resPrestamos.success ? resPrestamos.data : [];
+      const usuarios    = resUsuarios.success  ? resUsuarios.data  : [];
+
+      setStats({
+        totalInventario:   inventario.length,
+        disponibles:       inventario.filter((i) => i.estado === "disponible").length,
+        enUso:             inventario.filter((i) => i.estado === "en_uso").length,
+        prestamosActivos:  prestamos.filter((p)  => p.estado === "activo").length,
+        totalPrestamos:    prestamos.length,
+        totalUsuarios:     usuarios.length,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // ── Tarjetas de navegación según rol ──────
+  const navCards = [
+    {
+      title:       "Inventario",
+      description: "Consulta y gestiona todos los artículos registrados en el sistema.",
+      href:        "/panel/inventario",
+      icon:        Package,
+      visible:     true,
+    },
+    {
+      title:       "Préstamos",
+      description: isAdmin
+        ? "Registra nuevos préstamos y gestiona las devoluciones."
+        : "Consulta tus préstamos activos.",
+      href:        "/prestamos",
+      icon:        ClipboardList,
+      visible:     true,
+    },
+    {
+      title:       "Recursos",
+      description: "Explora las áreas del sistema y el catálogo completo de artículos.",
+      href:        "/recursos",
+      icon:        Boxes,
+      visible:     true,
+    },
+    {
+      title:       "Usuarios",
+      description: "Administra cuentas, roles y áreas de los usuarios del sistema.",
+      href:        "/panel/usuarios",
+      icon:        Users,
+      visible:     isSuperAdmin,
+    },
+    {
+      title:       "Configuración",
+      description: "Gestiona las áreas del sistema y parámetros generales.",
+      href:        "/panel/configuracion",
+      icon:        Settings,
+      visible:     isSuperAdmin,
+    },
+  ].filter((c) => c.visible);
+
+  // ─────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+
+      {/* ENCABEZADO */}
+      <motion.div
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="mb-8"
+      >
+        <p className="text-sm text-gray-500 font-medium">{saludo},</p>
+        <h1 className="text-3xl font-black text-gray-800">{nombre}</h1>
+        <div className="flex items-center gap-2 mt-2">
+          <div className="w-10 h-1 bg-[#002B49] rounded-full" />
+          <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">
+            {isSuperAdmin ? "Super Administrador" : isAdmin ? "Administrador" : "Usuario"}
+          </p>
+        </div>
+      </motion.div>
+
+      {/* MÉTRICAS — solo para admins */}
+      {isAdmin && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          <MetricCard
+            label="Artículos totales"
+            value={stats?.totalInventario ?? "—"}
+            icon={Package}
+            color="text-[#002B49] border-blue-100"
+            loading={loading}
+          />
+          <MetricCard
+            label="Disponibles"
+            value={stats?.disponibles ?? "—"}
+            icon={CheckCircle2}
+            color="text-emerald-700 border-emerald-100"
+            loading={loading}
+          />
+          <MetricCard
+            label="En préstamo"
+            value={stats?.enUso ?? "—"}
+            icon={Clock}
+            color="text-yellow-700 border-yellow-100"
+            loading={loading}
+          />
+          <MetricCard
+            label="Préstamos activos"
+            value={stats?.prestamosActivos ?? "—"}
+            icon={TrendingUp}
+            color="text-purple-700 border-purple-100"
+            loading={loading}
+          />
+        </div>
+      )}
+
+      {/* ALERTA si hay préstamos activos — para usuarios normales */}
+      {!isAdmin && stats?.prestamosActivos > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 bg-yellow-50 border border-yellow-200
+                     text-yellow-800 rounded-xl p-4 mb-6"
+        >
+          <AlertCircle size={18} className="flex-shrink-0" />
+          <p className="text-sm font-semibold">
+            Tienes <strong>{stats.prestamosActivos}</strong> artículo{stats.prestamosActivos > 1 ? "s" : ""} en préstamo activo.{" "}
+            <Link href="/prestamos" className="underline font-bold">Ver préstamos →</Link>
+          </p>
+        </motion.div>
+      )}
+
+      {/* TARJETAS DE NAVEGACIÓN */}
+      <div className="mb-4">
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
+          Accesos rápidos
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {navCards.map((card, i) => (
+            <NavCard key={card.href} {...card} delay={i * 0.07} />
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
